@@ -155,6 +155,20 @@ public:
 				LOG_ERROR << "nppiBGRToYUV420_8u_AC4P3R_Ctx failed<" << status << ">";
 			}
 		}
+		else if (inputImageType == ImageMetadata::RGB && outputImageType == ImageMetadata::YUV420)
+		{
+			auto status = nppiRGBToYUV420_8u_C3P3R(src[0],
+				srcPitch[0],
+				dst,
+				dstPitch,
+				srcSize[0]
+			);
+
+			if (status != NPP_SUCCESS)
+			{
+				LOG_ERROR << "nppiRGBToYUV420_8u_C3P3R failed<" << status << ">";
+			}
+		}
 		else if (inputImageType == ImageMetadata::MONO && outputImageType == ImageMetadata::YUV420)
 		{
 			// CUDA MEMCPY Y
@@ -386,6 +400,7 @@ void CCNPPI::setMetadata(framemetadata_sp& metadata)
 		&& (props.imageType != ImageMetadata::BGRA || (inputImageType != ImageMetadata::MONO && inputImageType != ImageMetadata::YUV420))
 		&& (inputImageType != ImageMetadata::BGRA || props.imageType != ImageMetadata::YUV420)
 		&& (inputImageType != ImageMetadata::MONO || props.imageType != ImageMetadata::YUV420)
+		&& (inputImageType != ImageMetadata::RGB || props.imageType != ImageMetadata::YUV420)
 		)
 	{
 		throw AIPException(AIP_NOTIMPLEMENTED, "Color conversion not supported");

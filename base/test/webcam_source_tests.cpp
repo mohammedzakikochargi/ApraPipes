@@ -7,8 +7,10 @@
 #include "PipeLine.h"
 #include "WebCamSource.h"
 #include "ExternalSinkModule.h"
+#include "FileWriterModule.h"
+#include "StatSink.h"
 
-BOOST_AUTO_TEST_SUITE(webcam_tests, * boost::unit_test::disabled())
+BOOST_AUTO_TEST_SUITE(webcam_tests, *boost::unit_test::disabled())
 
 BOOST_AUTO_TEST_CASE(basic)
 {
@@ -42,6 +44,54 @@ BOOST_AUTO_TEST_CASE(basic)
 	BOOST_TEST(outFrame->size() == 352 * 288 * 3);
 }
 
+BOOST_AUTO_TEST_CASE(basicFileWriter, *boost::unit_test::disabled())
+{
+	LoggerProps logprops;
+	logprops.logLevel = boost::log::trivial::severity_level::info;
+	Logger::initLogger(logprops);
+	WebCamSourceProps webCamSourceprops(-1, 1920, 1080, 30);
+	auto source = boost::shared_ptr<WebCamSource>(new WebCamSource(webCamSourceprops));
+	auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/wcs/wcs_????.raw")));
+	source->setNext(fileWriter);
+
+	PipeLine p("test");
+	p.appendModule(source);
+	BOOST_TEST(p.init());
+
+	p.run_all_threaded();
+
+	boost::this_thread::sleep_for(boost::chrono::seconds(10));
+	Logger::setLogLevel(boost::log::trivial::severity_level::error);
+
+	p.stop();
+	p.term();
+}
+BOOST_AUTO_TEST_CASE(basicStatSink, *boost::unit_test::disabled())
+{
+	LoggerProps logprops;
+	logprops.logLevel = boost::log::trivial::severity_level::info;
+	Logger::initLogger(logprops);
+	WebCamSourceProps webCamSourceprops(-1, 352, 288);
+	auto source = boost::shared_ptr<WebCamSource>(new WebCamSource(webCamSourceprops));
+
+	StatSinkProps sinkProps;
+	sinkProps.logHealth = true;
+	sinkProps.logHealthFrequency = 100;
+	auto sink = boost::shared_ptr<Module>(new StatSink(sinkProps));
+	source->setNext(sink);
+
+	PipeLine p("test");
+	p.appendModule(source);
+	BOOST_TEST(p.init());
+
+	p.run_all_threaded();
+
+	boost::this_thread::sleep_for(boost::chrono::seconds(600));
+	Logger::setLogLevel(boost::log::trivial::severity_level::error);
+
+	p.stop();
+	p.term();
+}
 BOOST_AUTO_TEST_CASE(basic_small)
 {
 

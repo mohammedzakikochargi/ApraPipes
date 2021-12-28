@@ -374,6 +374,50 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360_to_yuv420_640x360)
 	Test_Utils::saveOrCompare("./data/testOutput/ccnppi_tests_yuv420_640x360_to_yuv420_640x360.raw", (const uint8_t *)outFrame->data(), outFrame->size(), 0);
 }
 
+BOOST_AUTO_TEST_CASE(rgb_to_yuv420)
+{
+	auto width = 1280;
+	auto height = 720;
+
+	auto fileReader = boost::shared_ptr<FileReaderModule>(new FileReaderModule(FileReaderModuleProps("./data/frame_1280x720_rgb.raw")));
+	auto metadata = framemetadata_sp(new RawImageMetadata(width, height, ImageMetadata::ImageType::RGB, CV_8UC3, 3*width, CV_8U, FrameMetadata::HOST, true));
+
+	auto rawImagePin = fileReader->addOutputPin(metadata);
+
+	auto stream = cudastream_sp(new ApraCudaStream);
+	auto copy1 = boost::shared_ptr<Module>(new CudaMemCopy(CudaMemCopyProps(cudaMemcpyHostToDevice, stream)));
+	fileReader->setNext(copy1);
+
+	auto m2 = boost::shared_ptr<Module>(new CCNPPI(CCNPPIProps(ImageMetadata::YUV420, stream)));
+	copy1->setNext(m2);
+	auto copy2 = boost::shared_ptr<Module>(new CudaMemCopy(CudaMemCopyProps(cudaMemcpyDeviceToHost, stream)));
+	m2->setNext(copy2);
+	auto outputPinId = copy2->getAllOutputPinsByType(FrameMetadata::RAW_IMAGE_PLANAR)[0];
+
+
+	auto m3 = boost::shared_ptr<ExternalSinkModule>(new ExternalSinkModule());
+	copy2->setNext(m3);
+
+	BOOST_TEST(fileReader->init());
+	BOOST_TEST(copy1->init());
+	BOOST_TEST(m2->init());
+	BOOST_TEST(copy2->init());
+	BOOST_TEST(m3->init());
+
+
+
+	fileReader->step();
+	copy1->step();
+	m2->step();
+	copy2->step();
+	auto frames = m3->pop();
+	BOOST_TEST((frames.find(outputPinId) != frames.end()));
+	auto outFrame = frames[outputPinId];
+	BOOST_TEST(outFrame->getMetadata()->getFrameType() == FrameMetadata::RAW_IMAGE_PLANAR);
+
+	Test_Utils::saveOrCompare("./data/testOutput/ccnppi_tests_rgb_to_yuv420.raw", (const uint8_t *)outFrame->data(), outFrame->size(), 0);
+}
+
 BOOST_AUTO_TEST_CASE(perf, *boost::unit_test::disabled())
 {
 
