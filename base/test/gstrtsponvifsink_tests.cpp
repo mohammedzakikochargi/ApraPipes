@@ -40,6 +40,7 @@ BOOST_AUTO_TEST_CASE(gstrtspservertest, *boost::unit_test::disabled())
 	GStreamerOnvifRTSPSinkProps gstOnvifRTSPSinkProps;
 	gstOnvifRTSPSinkProps.frameFetchStrategy = ModuleProps::FrameFetchStrategy::PULL;
 	gstOnvifRTSPSinkProps.fps = 30;
+	gstOnvifRTSPSinkProps.unicastAddress = "localhost";
 	auto sink = boost::shared_ptr<GStreamerOnvifRTSPSink>(new GStreamerOnvifRTSPSink(gstOnvifRTSPSinkProps));
 	fileReader->setNext(sink);
 
