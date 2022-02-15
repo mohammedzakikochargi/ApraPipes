@@ -4,3 +4,6 @@
 [submodule "thirdparty/gstreamer"]
 	path = thirdparty/gstreamer
 	url = https://gitlab.freedesktop.org/gstreamer/gstreamer.git
+[submodule ".\\thirdparty\\gstreamer_1.16"]
+	path = .\\thirdparty\\gstreamer_1.16
+	url = https://gitlab.freedesktop.org/gstreamer/gst-build
