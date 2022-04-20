@@ -31,7 +31,7 @@ BOOST_AUTO_TEST_CASE(basic, *boost::unit_test::disabled())
 	auto hostdma = boost::shared_ptr<Module>(new HostDMA(hostdmaprops));
 	fileReader->setNext(hostdma);
 
-	auto nv_transform = boost::shared_ptr<Module>(new NvTransform(NvTransformProps(ImageMetadata::RGBA, 100)));
+	auto nv_transform = boost::shared_ptr<Module>(new NvTransform(NvTransformProps(ImageMetadata::RGBA)));
 	hostdma->setNext(nv_transform);
 
 	auto sink = boost::shared_ptr<Module>(new EglRenderer(EglRendererProps(0, 0, 640, 360)));
@@ -71,7 +71,7 @@ BOOST_AUTO_TEST_CASE(basicnv12, *boost::unit_test::disabled())
 	auto hostdma = boost::shared_ptr<Module>(new HostDMA(hostdmaprops));
 	fileReader->setNext(hostdma);
 
-	auto nv_transform = boost::shared_ptr<Module>(new NvTransform(NvTransformProps(ImageMetadata::NV12, 100)));
+	auto nv_transform = boost::shared_ptr<Module>(new NvTransform(NvTransformProps(ImageMetadata::NV12)));
 	hostdma->setNext(nv_transform);
 
 	auto sink = boost::shared_ptr<Module>(new EglRenderer(EglRendererProps(0, 0, 640, 360)));
@@ -117,7 +117,7 @@ BOOST_AUTO_TEST_CASE(cudabasic, *boost::unit_test::disabled())
 	auto devicedma = boost::shared_ptr<Module>(new DeviceToDMA(deviceTodmaprops));
 	copy->setNext(devicedma);
 
-	auto nv_transform = boost::shared_ptr<Module>(new NvTransform(NvTransformProps(ImageMetadata::RGBA, 100)));
+	auto nv_transform = boost::shared_ptr<Module>(new NvTransform(NvTransformProps(ImageMetadata::RGBA)));
 	devicedma->setNext(nv_transform);
 
 	// StatSinkProps sinkProps;
@@ -172,7 +172,7 @@ BOOST_AUTO_TEST_CASE(cudabasicresize, *boost::unit_test::disabled())
 	auto devicedma = boost::shared_ptr<Module>(new DeviceToDMA(deviceTodmaprops));
 	resize->setNext(devicedma);
 
-	auto nv_transform = boost::shared_ptr<Module>(new NvTransform(NvTransformProps(ImageMetadata::RGBA, 100)));
+	auto nv_transform = boost::shared_ptr<Module>(new NvTransform(NvTransformProps(ImageMetadata::RGBA)));
 	devicedma->setNext(nv_transform);
 
 	// StatSinkProps sinkProps;
