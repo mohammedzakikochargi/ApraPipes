@@ -268,7 +268,7 @@ SET(IP_FILES
 	src/WebCamSource.cpp
 	src/FaceDetectorXform.cpp
 	src/TextOverlayXForm.cpp
-
+	src/ColorConversion.cpp
 )
 
 
@@ -302,6 +302,7 @@ SET(IP_FILES_H
 	include/FaceDetectsInfo.h
 	include/FaceDetectorXform.h
 	include/TextOverlayXForm.h
+	include/ColorConversion.h
 )
 
 
@@ -550,6 +551,7 @@ SET(UT_FILES
   test/pullstratergy_tests.cpp
 	test/QRReader_tests.cpp
 	test/textoverlayxform_tests.cpp
+	test/color_conversion_tests.cpp
 	${ARM64_UT_FILES}
 	${CUDA_UT_FILES}
 )
