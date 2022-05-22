@@ -268,7 +268,8 @@ SET(IP_FILES
 	src/WebCamSource.cpp
 	src/FaceDetectorXform.cpp
 	src/TextOverlayXForm.cpp
-
+	src/Mp4ReaderSource.cpp
+    src/Mp4ReaderSourceUtils.cpp
 )
 
 
@@ -302,6 +303,9 @@ SET(IP_FILES_H
 	include/FaceDetectsInfo.h
 	include/FaceDetectorXform.h
 	include/TextOverlayXForm.h
+	include/Mp4ReaderSource.h
+    include/Mp4ReaderSourceUtils.h
+
 )
 
 
@@ -550,6 +554,8 @@ SET(UT_FILES
   test/pullstratergy_tests.cpp
 	test/QRReader_tests.cpp
 	test/textoverlayxform_tests.cpp
+	test/mp4readersource_tests.cpp
+    test/mp4readersourceutils_tests.cpp
 	${ARM64_UT_FILES}
 	${CUDA_UT_FILES}
 )
