@@ -16,6 +16,7 @@
 #include "QuePushStrategy.h"
 #include "FIndexStrategy.h"
 #include "Command.h"
+#include "PropsChangeMetadata.h"
 
 using namespace std;
 
@@ -198,6 +199,20 @@ protected:
 		frames.insert(make_pair("props_change", frame));
 		Module::push(frames);
 	}
+	template<class T1>
+	void setProps(T1& props, PropsChangeMetadata::ModuleName moduleName)
+	{
+		auto metadata = framemetadata_sp(new PropsChangeMetadata(moduleName));
+		auto size = props.getSerializeSize();
+		auto frame = makeCommandFrame(size, metadata);
+
+		// serialize
+		serialize<T1>(props, frame);
+		// add to que
+		frame_container frames;
+		frames.insert(make_pair("props_change", frame));
+		Module::push(frames);
+	}
 	virtual bool handlePropsChange(frame_sp& frame);
 	virtual bool handleCommand(Command::CommandType type, frame_sp& frame);
 	template<class T>
@@ -275,6 +290,7 @@ protected:
 	framemetadata_sp getFirstInputMetadata();
 	framemetadata_sp getFirstOutputMetadata();
 	metadata_by_pin& getInputMetadata() { return mInputPinIdMetadataMap; }
+	metadata_by_pin& getOutputMetadata() { return mOutputPinIdMetadataMap; }
 	framefactory_by_pin& getOutputFrameFactory() { return mOutputPinIdFrameFactoryMap; }
 	framemetadata_sp getInputMetadataByType(int type);
 	int getNumberOfInputsByType(int type);
@@ -357,6 +373,7 @@ private:
 		
 	std::map<std::string, bool> mInputPinsDirection;
 	metadata_by_pin mInputPinIdMetadataMap;
+	metadata_by_pin mOutputPinIdMetadataMap;
 	framefactory_by_pin mOutputPinIdFrameFactoryMap;
 	std::shared_ptr<FIndexStrategy> mFIndexStrategy;
 

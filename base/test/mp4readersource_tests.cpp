@@ -179,7 +179,7 @@ void random_seek_video(std::string skipDir, uint64_t skipTS, std::string startin
 BOOST_AUTO_TEST_CASE(mp4v_to_rgb_24_jpg)
 {
     /* no metadata, rbg, 24bpp, 960x480 */
-    std::string videoPath = "C:/Users/developer/ApraPipesfork/data/mp4_videos/mono_8bpp/20220419/0015/1653041827574.mp4";
+    std::string videoPath = "C:/Users/developer/ApraPipesfork/data/mp4_videos/streamer_mp4v.mp4";
     std::string outPath = "C:/Users/developer/ApraPipesfork/data/mp4_videos/outFrames";
     bool parseFS = true;
     read_video_extract_frames(videoPath, outPath, 960, 480, parseFS);

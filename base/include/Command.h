@@ -10,7 +10,8 @@ public:
 		None,
 		FileReaderModule,
 		Relay,
-		Step
+		Step,
+		Mp4Seek
 	};
 
 	Command()
@@ -164,6 +165,34 @@ private:
 	void serialize(Archive & ar, const unsigned int /* file_version */) {
 		ar & boost::serialization::base_object<Command>(*this);		
 	}
+};
 
+class Mp4SeekCommand : public Command
+{
+public:
+	Mp4SeekCommand() : Command(CommandType::Mp4Seek)
+	{
 
+	}
+
+	Mp4SeekCommand(uint64_t _skipTS) : Command(CommandType::Mp4Seek)
+	{
+		skipTS = _skipTS;
+	}
+
+	size_t getSerializeSize()
+	{
+		return 128 + sizeof(Mp4SeekCommand) + sizeof(skipTS) + Command::getSerializeSize();
+	}
+
+	uint64_t skipTS = 0;
+private:
+
+	friend class boost::serialization::access;
+	template<class Archive>
+	void serialize(Archive & ar, const unsigned int)
+	{
+		ar & boost::serialization::base_object<Command>(*this);
+		ar &skipTS;
+	}
 };
