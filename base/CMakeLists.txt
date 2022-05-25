@@ -278,6 +278,8 @@ SET(IP_FILES
 	src/WebCamSource.cpp
 	src/FaceDetectorXform.cpp
 	src/TextOverlayXForm.cpp
+	src/Mp4ReaderSource.cpp
+    src/Mp4ReaderSourceUtils.cpp
 )
 
 
@@ -311,6 +313,9 @@ SET(IP_FILES_H
 	include/FaceDetectsInfo.h
 	include/FaceDetectorXform.h
 	include/TextOverlayXForm.h
+	include/Mp4ReaderSource.h
+    include/Mp4ReaderSourceUtils.h
+
 )
 
 
