@@ -10,6 +10,8 @@ IF(ENABLE_CUDA)
 	add_compile_definitions(APRA_CUDA_ENABLED)
 ENDIF(ENABLE_CUDA)
 
+SET ( LIBMP4_LIB_DIR "../thirdparty/libmp4/libs")
+
 IF(ENABLE_LINUX)
 	add_compile_definitions(LINUX)	
 ENDIF(ENABLE_LINUX)
@@ -136,6 +138,8 @@ IF(ENABLE_CUDA)
 		) 
 		include_directories(AFTER SYSTEM /usr/local/cuda/include)
 	ELSE()
+		list(APPEND CMAKE_PREFIX_PATH ${LIBMP4_LIB_DIR})
+        find_library(LIBMP4_LIB mp4lib.lib)
 		find_library(LIBNVCUVID nvcuvid.lib PATHS ../thirdparty/Video_Codec_SDK_10.0.26/Lib/x64 NO_DEFAULT_PATH) #change for windows
 		find_library(LIBNVENCODE nvencodeapi.lib PATHS ../thirdparty/Video_Codec_SDK_10.0.26/Lib/x64 NO_DEFAULT_PATH) #change for windows
 		SET(NVCODEC_LIB ${LIBNVCUVID} ${LIBNVENCODE})
@@ -179,6 +183,8 @@ SET(CORE_FILES
 	src/FIndexStrategy.cpp
 	src/AudioCaptureSrc.cpp
 	src/QRReader.cpp
+	src/Mp4WriterSink.cpp
+	src/Mp4WriterSinkUtils.cpp
 )
 
 SET(CORE_FILES_H
@@ -222,6 +228,10 @@ SET(CORE_FILES_H
 	include/FIndexStrategy.h
 	include/AudioCaptureSrc.h
 	include/QRReader.h
+	include/Mp4WriterSink.h
+	include/Mp4WriterSinkUtils.h
+	include/EncodedImageMetadata.h
+	include/PropsChangeMetadata.h
 )
 
 IF(ENABLE_WINDOWS)
@@ -445,6 +455,7 @@ ${JETSON_MULTIMEDIA_LIB_INCLUDE}
 ${FFMPEG_INCLUDE_DIRS} 
 ${OpenCV_INCLUDE_DIRS} 
 ${Boost_INCLUDE_DIRS}
+${LIBMP4_LIB}
 )
 
 IF(NOT ENABLE_ARM64)
@@ -550,6 +561,7 @@ SET(UT_FILES
   test/pullstratergy_tests.cpp
 	test/QRReader_tests.cpp
 	test/textoverlayxform_tests.cpp
+	test/mp4writersink_tests.cpp
 	${ARM64_UT_FILES}
 	${CUDA_UT_FILES}
 )
@@ -582,6 +594,7 @@ ENDIF(ENABLE_ARM64)
 
 target_link_libraries(aprapipesut   
   aprapipes  
+  ${LIBMP4_LIB}
   ${Boost_LIBRARIES}
   ${FFMPEG_LIBRARIES}
   ${OpenCV_LIBRARIES}

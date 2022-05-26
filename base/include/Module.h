@@ -16,6 +16,7 @@
 #include "QuePushStrategy.h"
 #include "FIndexStrategy.h"
 #include "Command.h"
+#include "PropsChangeMetadata.h"
 
 using namespace std;
 
@@ -193,6 +194,20 @@ protected:
 
 		// serialize
 		serialize<T>(props, frame);
+		// add to que
+		frame_container frames;
+		frames.insert(make_pair("props_change", frame));
+		Module::push(frames);
+	}
+	template<class T1>
+	void setProps(T1& props, PropsChangeMetadata::ModuleName moduleName)
+	{
+		auto metadata = framemetadata_sp(new PropsChangeMetadata(moduleName));
+		auto size = props.getSerializeSize();
+		auto frame = makeCommandFrame(size, metadata);
+
+		// serialize
+		serialize<T1>(props, frame);
 		// add to que
 		frame_container frames;
 		frames.insert(make_pair("props_change", frame));
