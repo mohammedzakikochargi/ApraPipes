@@ -3,6 +3,7 @@
 #include "Mp4VideoMetadata.h"
 #include "Mp4ReaderSourceUtils.h"
 #include "PropsChangeMetadata.h"
+#include "EncodedImageMetadata.h"
 #include "Frame.h"
 #include "Command.h"
 #include "libmp4.h"
@@ -10,10 +11,11 @@
 class Mp4ReaderSource::Detail
 {
 public:
-	Detail(Mp4ReaderSourceProps &props, std::function<frame_sp(size_t size)> _makeFrame)
+	Detail(Mp4ReaderSourceProps &props, std::function<frame_sp(size_t size)> _makeFrame , std::function<void(framemetadata_sp metadata)> _setMetadata)
 	{
 		setProps(props);
 		makeFrame = _makeFrame;
+		setMetadata = _setMetadata;
 		mFSParser = boost::shared_ptr<FileStructureParser>(new FileStructureParser());
 	}
 
@@ -34,18 +36,6 @@ public:
 
 	void Init()
 	{
-		// #Dec_27_Review - redundant - use makeBuffer from produce
-		sample_buffer_size = 5 * 1024 * 1024;
-		size_t frameSize = static_cast<size_t>(sample_buffer_size);
-		tempSampleBuffer = makeFrame(frameSize);
-		sample_buffer = static_cast<uint8_t *>(tempSampleBuffer->data());
-
-		// #Dec_27_Review - redundant - use makeBuffer from produce
-		metadata_buffer_size = 1 * 1024 * 1024;
-		frameSize = static_cast<size_t>(metadata_buffer_size);
-		tempMetaBuffer = makeFrame(frameSize);
-		metadata_buffer = static_cast<uint8_t *>(tempMetaBuffer->data()); // MFrames  
-
 		initNewVideo();
 	}
 
@@ -151,6 +141,8 @@ public:
 				mState.has_more_video = mState.info.sample_count > 0;
 				mState.videotrack = 1;
 				mState.mFramesInVideo = mState.info.sample_count;
+				width = mState.info.video_width;
+				height = mState.info.video_height;
 			}
 		}
 
@@ -160,6 +152,8 @@ public:
 			throw AIPException(AIP_FATAL, "No video track found");
 		}
 
+		auto tempEncodedImgMetadata = framemetadata_sp(new EncodedImageMetadata(width, height));
+		setMetadata(tempEncodedImgMetadata);
 		return true;
 	}
 
@@ -232,7 +226,7 @@ public:
 		return true;
 	}
 
-	void readNextFrame(uint8_t * sampleFrames, uint8_t * sampleMetadata, size_t * image_Frame_Size, size_t * metadata_Frame_Size)//, uint8_t* BFrames, uint8_t* MFrames
+	void readNextFrame(uint8_t* sampleFrame, uint8_t* sampleMetadataFrame, size_t& imageFrameSize, size_t& metadataFrameSize)
 	{
 
 		// all frames of the open video are already read and end has not reached
@@ -246,7 +240,8 @@ public:
 
 		if (mState.end) // no files left to be parsed
 		{
-			actualImageSize = NULL;
+			sampleFrame = nullptr;
+			imageFrameSize = 0;
 			return;
 		}
 
@@ -255,15 +250,13 @@ public:
 			ret = mp4_demux_get_track_sample(mState.demux,
 				mState.video.id,
 				1,
-				sampleFrames,
-				sample_buffer_size,
-				sampleMetadata,
-				metadata_buffer_size,
+				sampleFrame,
+				mProps.biggerFrameSize,
+				sampleMetadataFrame,
+				mProps.biggerMetadataFrameSize,
 				&mState.sample);
-			actualImageSize = reinterpret_cast<uint32_t>(image_Frame_Size);
-			actualMetadataSize = reinterpret_cast<uint32_t>(metadata_Frame_Size);
-			actualImageSize = mState.sample.size;
-			actualMetadataSize = mState.sample.metadata_size;
+			imageFrameSize = mState.sample.size;
+			metadataFrameSize = mState.sample.metadata_size;
 			/* To get only info about the frames
 			ret = mp4_demux_get_track_sample(
 				demux, id, 1, NULL, 0, NULL, 0, &sample);
@@ -273,16 +266,12 @@ public:
 			{
 				LOG_INFO << "<" << ret << "," << mState.sample.size << "," << mState.sample.metadata_size << ">";
 				mState.has_more_video = 0;
-				sampleFrames = nullptr;
+				sampleFrame = nullptr;
+				imageFrameSize = 0;
 				return;
 			}
 
 			++mState.mFrameCounter;
-			// #Dec_27_Review - don't use string
-
-			/*frameSize = static_cast<size_t>(mState.sample.size);
-			metadataBuffer.assign(reinterpret_cast<char *>(metadata_buffer), mState.sample.metadata_size);
-			return sample_buffer;*/
 
 		}
 		return;
@@ -291,8 +280,6 @@ public:
 
 	Mp4ReaderSourceProps mProps;
 private:
-	frame_sp tempSampleBuffer;
-	frame_sp tempMetaBuffer;
 
 	struct DemuxAndParserState
 	{
@@ -321,27 +308,45 @@ private:
 		- parseFS is disabled and intial video has finished playing
 	*/
 public:
-	size_t actualImageSize;
-	size_t actualMetadataSize;
+	int width = 0;
+	int height = 0;
 	uint8_t* sample_buffer;
 	uint32_t sample_buffer_size = 0;
 	uint8_t* metadata_buffer;
 	uint32_t  metadata_buffer_size = 0;
 	int ret;
 
+	std::function<void(framemetadata_sp metadata)> setMetadata;
 	std::function<frame_sp(size_t size)> makeFrame;
 	boost::shared_ptr<FileStructureParser> mFSParser;
 };
 
 Mp4ReaderSource::Mp4ReaderSource(Mp4ReaderSourceProps _props)
-	:Module(SOURCE, "Mp4ReaderSource", _props)
+	: Module(SOURCE, "Mp4ReaderSource", _props)
 {
-	mDetail.reset(new Detail(_props, [&](size_t size) {
-		return makeFrame(size);
-	}));
+	mDetail.reset(new Detail(
+		_props,
+		[&](size_t size)
+		{ return makeFrame(size); },
+		[&](framemetadata_sp metadata)
+		{ return setMetadata(metadata); }));
 }
 
 Mp4ReaderSource::~Mp4ReaderSource() {}
+
+void Mp4ReaderSource::setMetadata(framemetadata_sp metadata)
+{
+	if (!metadata->isSet())
+	{
+		return;
+	}
+	auto encodedMetadata = FrameMetadataFactory::downcast<EncodedImageMetadata>(metadata);
+	auto outMetadata = Module::getOutputMetadataByType(FrameMetadata::FrameType::ENCODED_IMAGE);
+	auto outEncodedMetadata = FrameMetadataFactory::downcast<EncodedImageMetadata>(outMetadata);
+
+	outEncodedMetadata->setData(encodedMetadata);
+	return;
+}
 
 bool Mp4ReaderSource::init()
 {
@@ -388,39 +393,27 @@ string Mp4ReaderSource::addOutputPin(framemetadata_sp& metadata)
 
 bool Mp4ReaderSource::produce()
 {
-	frame_sp imgFrame;
-	frame_sp metadataFrame;
-	imgFrame = makeFrame(mDetail->mProps.biggerFrameSize, getOutputPinIdByType(FrameMetadata::ENCODED_IMAGE));
-	metadataFrame = makeFrame(mDetail->mProps.biggerMetadataSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
-	uint8_t * sampleFrames = reinterpret_cast<uint8_t *>(imgFrame->data());
-	uint8_t * sampleMetadata = reinterpret_cast<uint8_t *>(metadataFrame->data());
-
-	// #Dec_27_Review - why can't we do makeBuffer and send the pointer here?
-	// #Dec_27_Review - why do we have to use string, can't we use makeBuffer here
+	frame_sp imgFrame = makeFrame(mDetail->mProps.biggerFrameSize, getOutputPinIdByType(FrameMetadata::ENCODED_IMAGE));
+	frame_sp metadataFrame = makeFrame(mDetail->mProps.biggerMetadataFrameSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
+	uint8_t* sampleFrame = reinterpret_cast<uint8_t *>(imgFrame->data());
+	uint8_t* sampleMetadataFrame = reinterpret_cast<uint8_t *>(metadataFrame->data());
 	size_t imageActualSize;
 	size_t metadataActualSize;
-	mDetail->readNextFrame(sampleFrames, sampleMetadata, &imageActualSize, &metadataActualSize);
+	mDetail->readNextFrame(sampleFrame, sampleMetadataFrame, imageActualSize, metadataActualSize);
 
-	if (!mDetail->actualImageSize)
+	if (!imageActualSize || !sampleFrame)
 	{
 		// #Dec_27_Review - return false will call onStepFail
 		// #Dec_27_Review - onStepFail will not do anything currently - so produce is called again and again
 		return false;
 	}
 
-	// #Dec_27_Review - why can't we use makeFrame here ?
-	// makeBuffer is used - when you don't know how much buffer is required - in this case we exactly know how much we want
-	// #Dec_27_Review - redundant use makeBuffer to readNextFrame
-	auto frame1 = makeFrame(imgFrame, mDetail->actualImageSize, encodedImagePinId);
 	frame_container frames;
-
-	frames.insert(make_pair(encodedImagePinId, frame1));
-
-	auto metadataFrameSize = mDetail->mProps.biggerMetadataSize;
-	if (metadataFrameSize)
+	auto trimmedImgFrame = makeFrame(imgFrame, imageActualSize, encodedImagePinId);
+	frames.insert(make_pair(encodedImagePinId, trimmedImgFrame));
+	if (metadataActualSize)
 	{
-		// #Dec_27_Review - redundant use makeBuffer to readNextFrame
-		auto metadataSizeFrame = makeFrame(metadataFrame, metadataFrameSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
+		auto metadataSizeFrame = makeFrame(metadataFrame, metadataActualSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
 
 		frames.insert(make_pair(mp4FramePinId, metadataSizeFrame));
 	}

@@ -78,7 +78,7 @@ void read_video_extract_frames(std::string videoPath, std::string outPath, int w
  
     auto mp4ReaderProps = Mp4ReaderSourceProps(videoPath, parseFS);
     auto mp4Reader = boost::shared_ptr<Mp4ReaderSource>(new Mp4ReaderSource(mp4ReaderProps));
-    auto encodedImageMetadata = framemetadata_sp(new EncodedImageMetadata(width, height));
+    auto encodedImageMetadata = framemetadata_sp(new EncodedImageMetadata(0,0));
     mp4Reader->addOutputPin(encodedImageMetadata);
     auto mp4Metadata = framemetadata_sp(new Mp4VideoMetadata());
     mp4Reader->addOutputPin(mp4Metadata);
@@ -138,7 +138,7 @@ void random_seek_video(std::string skipDir, uint64_t skipTS, std::string startin
  
     auto mp4ReaderProps = Mp4ReaderSourceProps(startingVideoPath, true, 5000000, 50000);
     auto mp4Reader = boost::shared_ptr<Mp4ReaderSource>(new Mp4ReaderSource(mp4ReaderProps));
-    auto encodedImageMetadata = framemetadata_sp(new EncodedImageMetadata(width, height));
+    auto encodedImageMetadata = framemetadata_sp(new EncodedImageMetadata(0, 0));
     mp4Reader->addOutputPin(encodedImageMetadata);
     auto mp4Metadata = framemetadata_sp(new Mp4VideoMetadata());
     mp4Reader->addOutputPin(mp4Metadata);
@@ -241,7 +241,7 @@ void read_video_decode_frames(std::string startingVideoPath, int width, int heig
 {
     auto mp4ReaderProps = Mp4ReaderSourceProps(startingVideoPath, true, 5000000, 50000);
     auto mp4Reader = boost::shared_ptr<Mp4ReaderSource>(new Mp4ReaderSource(mp4ReaderProps));
-    auto encodedImageMetadata = framemetadata_sp(new EncodedImageMetadata(width, height));
+    auto encodedImageMetadata = framemetadata_sp(new EncodedImageMetadata(0,0));
     mp4Reader->addOutputPin(encodedImageMetadata);
     auto mp4Metadata = framemetadata_sp(new Mp4VideoMetadata());
     mp4Reader->addOutputPin(mp4Metadata);

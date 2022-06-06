@@ -7,8 +7,9 @@
 class EncodedImageMetadata : public FrameMetadata
 {
 public:
-	EncodedImageMetadata() : FrameMetadata(FrameType::ENCODED_IMAGE) {}
-	//EncodedImageMetadata(std::string _hint) : FrameMetadata(FrameType::RAW_IMAGE, _hint) {}
+	EncodedImageMetadata() : FrameMetadata(FrameType::ENCODED_IMAGE)
+	{
+	}
 	EncodedImageMetadata(MemType _memType) : FrameMetadata(FrameType::ENCODED_IMAGE, _memType) {}
 
 	EncodedImageMetadata(int _width, int _height) : FrameMetadata(FrameType::ENCODED_IMAGE, FrameMetadata::HOST)
@@ -32,19 +33,11 @@ public:
 		return width != NOT_SET_NUM;
 	}
 
-	void setData(cv::Mat &img)
+	void setData(EncodedImageMetadata *metadata)
 	{
-		// applicable only for rgba, mono
-		width = img.cols;
-		height = img.rows;
-	}
 
-	void setData(EncodedImageMetadata &metadata)
-	{
-		FrameMetadata::setData(metadata);
-
-		width = metadata.width;
-		height = metadata.height;
+		width = metadata->width;
+		height = metadata->height;
 
 		//setDataSize();
 	}

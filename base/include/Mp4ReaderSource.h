@@ -10,10 +10,10 @@ public:
 
 	}
 
-	Mp4ReaderSourceProps(std::string _videoPath, bool _parseFS, size_t _biggerFrameSize, size_t _biggerMetadataSize) : ModuleProps()
+	Mp4ReaderSourceProps(std::string _videoPath, bool _parseFS, size_t _biggerFrameSize, size_t _biggerMetadataFrameSize) : ModuleProps()
 	{
 		biggerFrameSize = _biggerFrameSize;
-		biggerMetadataSize = _biggerMetadataSize;
+		biggerMetadataFrameSize = _biggerMetadataFrameSize;
 		videoPath = _videoPath;
 		parseFS = _parseFS;
 		if (parseFS)
@@ -22,12 +22,9 @@ public:
 		}
 
 	}
+	
 	Mp4ReaderSourceProps(std::string _videoPath, bool _parseFS) : ModuleProps()
 	{
-		size_t _biggerFrameSize = 500000;
-		size_t _biggerMetadataSize = 5000;
-		biggerFrameSize = _biggerFrameSize;
-		biggerMetadataSize = _biggerMetadataSize;
 		videoPath = _videoPath;
 		parseFS = _parseFS;
 		if (parseFS)
@@ -45,8 +42,8 @@ public:
 
 	std::string skipDir = "./data/mp4_videos";
 	std::string videoPath = "";
-	size_t biggerFrameSize;
-	size_t biggerMetadataSize;
+	size_t biggerFrameSize = 600000;
+	size_t biggerMetadataFrameSize = 60000;
 	bool parseFS = true;
 private:
 	friend class boost::serialization::access;
@@ -58,6 +55,8 @@ private:
 		ar &videoPath;
 		ar &parseFS;
 		ar &skipDir;
+		ar &biggerFrameSize;
+		ar &biggerMetadataFrameSize;
 	}
 };
 
@@ -72,6 +71,7 @@ public:
 	void setProps(Mp4ReaderSourceProps &props);
 	string addOutputPin(framemetadata_sp& metadata);
 	bool randomSeek(uint64_t skipTS);
+	void setMetadata(framemetadata_sp metadata);
 protected:
 	bool produce();
 	bool validateOutputPins();
