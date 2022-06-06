@@ -458,11 +458,6 @@ Mp4ReaderSourceProps Mp4ReaderSource::getProps()
 	return mDetail->mProps;
 }
 
-void Mp4ReaderSource::setProps(Mp4ReaderSourceProps &props)
-{
-	Module::setProps(props, PropsChangeMetadata::ModuleName::Mp4ReaderSource);
-}
-
 bool Mp4ReaderSource::handlePropsChange(frame_sp &frame)
 {
 	Mp4ReaderSourceProps props(mDetail->mProps.videoPath, mDetail->mProps.parseFS);
@@ -483,6 +478,11 @@ bool Mp4ReaderSource::handleCommand(Command::CommandType type, frame_sp& frame)
 	{
 		return Module::handleCommand(type, frame);
 	}
+}
+
+void Mp4ReaderSource::setProps(Mp4ReaderSourceProps &props)
+{
+	Module::addPropsToQueue(props);
 }
 
 bool Mp4ReaderSource::randomSeek(uint64_t skipTS)
