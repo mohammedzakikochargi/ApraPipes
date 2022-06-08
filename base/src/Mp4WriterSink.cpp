@@ -384,15 +384,15 @@ bool Mp4WriterSink::processEOS(string &pinId)
 	return true;
 }
 
-void Mp4WriterSink::setProps(Mp4WriterSinkProps &props)
-{
-	Module::setProps(props, PropsChangeMetadata::ModuleName::Mp4WriterSink);
-}
-
 bool Mp4WriterSink::handlePropsChange(frame_sp &frame)
 {
 	Mp4WriterSinkProps props;
 	bool ret = Module::handlePropsChange(frame, props);
 	mDetail->setProps(props);
 	return ret;
+}
+
+void Mp4WriterSink::setProps(Mp4WriterSinkProps &props)
+{
+	Module::addPropsToQueue(props);
 }

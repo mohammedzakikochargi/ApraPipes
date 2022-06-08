@@ -69,6 +69,7 @@ public:
 	virtual ~Mp4WriterSink();
 	bool init();
 	bool term();
+	void setProps(Mp4WriterSinkProps &props);
 protected:
 	bool process(frame_container& frames);
 	bool processSOS(frame_sp& frame);
@@ -76,7 +77,6 @@ protected:
 	bool validateInputPins();
 	bool validateInputOutputPins();
 	bool setMetadata(framemetadata_sp &inputMetadata);
-	void setProps(Mp4WriterSinkProps &props);
 	bool handlePropsChange(frame_sp &frame);
 	bool shouldTriggerSOS();
 private:
