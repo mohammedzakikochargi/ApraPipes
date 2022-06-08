@@ -20,7 +20,7 @@ public:
 
 	bool isSet()
 	{
-		return version.empty();
+		return !version.empty();
 	}
 
 	void setData(std::string& _version)
