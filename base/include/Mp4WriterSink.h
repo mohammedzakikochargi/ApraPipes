@@ -70,6 +70,7 @@ public:
 	bool init();
 	bool term();
 	void setProps(Mp4WriterSinkProps &props);
+	Mp4WriterSinkProps getProps();
 protected:
 	bool process(frame_container& frames);
 	bool processSOS(frame_sp& frame);

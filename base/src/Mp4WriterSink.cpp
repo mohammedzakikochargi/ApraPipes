@@ -215,6 +215,7 @@ public:
 	}
 
 	boost::shared_ptr<Mp4WriterSinkProps> mProps;
+
 	bool mMetadataEnabled = false;
 private:
 	// #Dec_24_Review - good practice to initialize all the variables here to default values - uninitialized values can cause unexpected errors
@@ -382,6 +383,13 @@ bool Mp4WriterSink::processEOS(string &pinId)
 	// Example EOS can be triggered if there is some resolution change in upstream module
 	// so you want to do mDetail->mInputMetadata.reset() - so that SOS gets triggered
 	return true;
+}
+
+Mp4WriterSinkProps Mp4WriterSink::getProps()
+{
+	auto tempProps = Mp4WriterSinkProps(mDetail->mProps->chunkTime, mDetail->mProps->syncTime, mDetail->mProps->fps, mDetail->mProps->baseFolder);
+	fillProps(tempProps);
+	return tempProps;
 }
 
 bool Mp4WriterSink::handlePropsChange(frame_sp &frame)
