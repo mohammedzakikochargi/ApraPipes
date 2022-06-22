@@ -4,6 +4,7 @@
 #include "Mp4ReaderSourceUtils.h"
 #include "PropsChangeMetadata.h"
 #include "EncodedImageMetadata.h"
+#include "libmp4.h"
 #include "Frame.h"
 #include "Command.h"
 #include "libmp4.h"
@@ -405,7 +406,7 @@ bool Mp4ReaderSource::produce()
 	{
 		// #Dec_27_Review - return false will call onStepFail
 		// #Dec_27_Review - onStepFail will not do anything currently - so produce is called again and again
-		return false;
+		return true;
 	}
 
 	frame_container frames;
@@ -460,10 +461,16 @@ Mp4ReaderSourceProps Mp4ReaderSource::getProps()
 
 bool Mp4ReaderSource::handlePropsChange(frame_sp &frame)
 {
-	Mp4ReaderSourceProps props(mDetail->mProps.videoPath, mDetail->mProps.parseFS);
+	Mp4ReaderSourceProps props(mDetail->mProps.videoPath, mDetail->mProps.parseFS, mDetail->mProps.biggerFrameSize, mDetail->mProps.biggerMetadataFrameSize);
 	bool ret = Module::handlePropsChange(frame, props);
 	mDetail->setProps(props);
+	mDetail->Init();
 	return ret;
+}
+
+void Mp4ReaderSource::setProps(Mp4ReaderSourceProps &props)
+{
+	Module::addPropsToQueue(props);
 }
 
 bool Mp4ReaderSource::handleCommand(Command::CommandType type, frame_sp& frame)
@@ -478,11 +485,6 @@ bool Mp4ReaderSource::handleCommand(Command::CommandType type, frame_sp& frame)
 	{
 		return Module::handleCommand(type, frame);
 	}
-}
-
-void Mp4ReaderSource::setProps(Mp4ReaderSourceProps &props)
-{
-	Module::addPropsToQueue(props);
 }
 
 bool Mp4ReaderSource::randomSeek(uint64_t skipTS)
