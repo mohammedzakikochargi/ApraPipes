@@ -2,6 +2,10 @@
 
 #include "Module.h"
 
+class DetailAbs;
+class DetailJpeg;
+class DetailH264;
+
 class Mp4WriterSinkProps : public ModuleProps
 {
 public:
@@ -80,7 +84,7 @@ protected:
 	bool setMetadata(framemetadata_sp &inputMetadata);
 	bool handlePropsChange(frame_sp &frame);
 	bool shouldTriggerSOS();
-private:
-	class Detail;
-	boost::shared_ptr<Detail> mDetail;
+	boost::shared_ptr<DetailAbs> mDetail;
+	Mp4WriterSinkProps mProps2;
+
 };
