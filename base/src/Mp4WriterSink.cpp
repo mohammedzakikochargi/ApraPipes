@@ -7,6 +7,7 @@
 #include "Mp4WriterSinkUtils.h"
 #include "EncodedImageMetadata.h"
 #include "libmp4.h"
+#include "H264FrameUtils.h"
 #include "list.h"
 #include "PropsChangeMetadata.h"
 #include "H264Metadata.h"
@@ -66,7 +67,7 @@ public:
 		}
 
 		else if (codec == MP4_VIDEO_CODEC_AVC)
-		{
+		{			
 			struct mp4_mux_sample mux_sample;
 			vdc.width = mWidth;
 			vdc.height = mHeight;
@@ -392,6 +393,8 @@ bool DetailH264::write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, 
 		mp4_mux_sync(mux);
 		syncFlag = false;
 	}
+	//struct mp4_mux_sample mux_sample;
+	
 	std::ifstream syncfile("data/SyncNumber.txt");
 	std::set<uint64_t> syncNumbers;
 	std::string linep;
@@ -401,6 +404,7 @@ bool DetailH264::write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, 
 		syncNumbers.insert(std::stoi(linep));
 	}
 	syncnum = inH264ImageFrame->fIndex;
+	LOG_INFO << "frame number =" << syncnum;
 	if (syncNumbers.find(syncnum) != syncNumbers.end())
 	{
 		isKeyFrame = true;

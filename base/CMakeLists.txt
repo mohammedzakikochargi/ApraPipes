@@ -143,16 +143,18 @@ IF(ENABLE_CUDA)
 		find_library(LIBNVCUVID nvcuvid.lib PATHS ../thirdparty/Video_Codec_SDK_10.0.26/Lib/x64 NO_DEFAULT_PATH) #change for windows
 		find_library(LIBNVENCODE nvencodeapi.lib PATHS ../thirdparty/Video_Codec_SDK_10.0.26/Lib/x64 NO_DEFAULT_PATH) #change for windows
 		SET(NVCODEC_LIB ${LIBNVCUVID} ${LIBNVENCODE})
-
+		SET(NVCODEC_INCLUDE_DIR ../thirdparty/Video_Codec_SDK_10.0.26/Interface)
 		SET(NVCUDAToolkit_LIBS		
 			cudart_static.lib
 			nvjpeg.lib
+			cuda.lib
 			nppig.lib
 			nppicc.lib
 			nppidei.lib
 			nppial.lib					
 			cublas.lib	
 			cublasLt.lib
+			
 		)
 		include_directories(AFTER SYSTEM "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v10.2/include")
 	ENDIF(ENABLE_ARM64)
@@ -247,6 +249,7 @@ SET(GENERIC_FILES
 	src/H264ParserUtils.cpp
 	src/H264Utils.cpp
 	src/QRReader.cpp
+	src/H264FrameUtils.cpp
 )
 SET(GENERIC_FILES_H
 	include/H264FrameDemuxer.h
@@ -254,6 +257,7 @@ SET(GENERIC_FILES_H
 	include/H264Utils.h
 	include/RTSPPusher.h
 	include/QRReader.h
+	include/H264FrameUtils.h
 )
 
 IF(ENABLE_LINUX)
@@ -356,6 +360,8 @@ SET(CUDA_IP_FILES
 	src/OverlayNPPI.cpp
 	src/ResizeNPPI.cpp
 	src/RotateNPPI.cpp
+	src/H264EncoderNVCodecHelper.cpp
+	src/H264EncoderNVCodec.cpp		
 )
 
 IF(ENABLE_ARM64)
@@ -398,6 +404,8 @@ SET(CUDA_IP_FILES_H
 	include/OverlayNPPI.h
 	include/OverlayKernel.h
 	include/RotateNPPI.h
+	include/H264EncoderNVCodecHelper.h
+	include/H264EncoderNVCodec.h
 )
 
 IF(ENABLE_ARM64)
@@ -456,6 +464,7 @@ ${FFMPEG_INCLUDE_DIRS}
 ${OpenCV_INCLUDE_DIRS} 
 ${Boost_INCLUDE_DIRS}
 ${LIBMP4_LIB}
+${NVCODEC_INCLUDE_DIR}
 )
 
 IF(NOT ENABLE_ARM64)
@@ -470,6 +479,7 @@ ${glib-2.0_INCLUDE_DIRS}
 ${gstreamer-rtsp-1.0_INCLUDE_DIRS}
 ${gstreamer-rtp-1.0_INCLUDE_DIRS}
 ${gstreamer-net-1.0_INCLUDE_DIRS}
+${NVCODEC_INCLUDE_DIR}
 ${gio-2.0_INCLUDE_DIRS}
 ${gmodule-2.0_INCLUDE_DIRS}
 ${gthread-2.0_INCLUDE_DIRS}
@@ -525,6 +535,7 @@ IF (ENABLE_CUDA)
 			test/ccnppi_tests.cpp
 			test/overlaynppi_tests.cpp
 			test/effectsnppi_tests.cpp
+			test/h264encodernvcodec_tests.cpp
 		)
 	ENDIF(ENABLE_ARM64)
 ENDIF(ENABLE_CUDA)
