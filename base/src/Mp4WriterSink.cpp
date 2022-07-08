@@ -2,6 +2,8 @@
 #include <fstream>
 
 #include "FrameMetadata.h"
+#include "Frame.h"
+#include "H264Utils.h"
 #include "Mp4VideoMetadata.h"
 #include "Mp4WriterSink.h"
 #include "Mp4WriterSinkUtils.h"
@@ -56,49 +58,6 @@ public:
 		return mMetadataEnabled;
 	}
 
-	virtual bool set_video_decoder_config(mp4_video_codec codec)
-	{
-		if (codec == MP4_VIDEO_CODEC_MP4V)
-		{
-			vdc.width = mWidth;
-			vdc.height = mHeight;
-			vdc.codec = codec;
-
-		}
-
-		else if (codec == MP4_VIDEO_CODEC_AVC)
-		{			
-			struct mp4_mux_sample mux_sample;
-			vdc.width = mWidth;
-			vdc.height = mHeight;
-			vdc.codec = codec;
-			std::ifstream spsfile("data/bunny.mp4", std::ios::binary);
-			spsfile.seekg(0x00000274, std::ios::beg);
-			char *spsBuffer = (char *)malloc(23);
-			uint8_t *sps_Buffers = (uint8_t *)malloc(23);
-			spsfile.read(spsBuffer, 23);
-			memcpy(sps_Buffers, spsBuffer, 23);
-			spsfile.seekg(0, spsfile.beg);
-			spsfile.seekg(0x0000028e, std::ios::beg);
-			char *ppsBuffer = (char *)malloc(4);
-			uint8_t *pps_Buffers = (uint8_t *)malloc(4);
-			spsfile.read(ppsBuffer, 4);
-			memcpy(pps_Buffers, ppsBuffer, 4);
-			uint8_t *sps_temp = sps_Buffers;
-			uint8_t *pps_temp = pps_Buffers;
-			vdc.avc.sps = sps_temp;
-			vdc.avc.pps = pps_temp;
-			vdc.avc.pps_size = 4;
-			vdc.avc.sps_size = 23;
-
-		}
-		else
-		{
-			LOG_ERROR << "The codec is not supported by Mp4Writer";
-			throw AIPException(AIP_FATAL, "Codec not found.");
-		}
-		return true;
-	}
 	std::string format_2(int x)
 	{
 		auto xStr = std::to_string(x);
@@ -156,15 +115,42 @@ class DetailJpeg : public DetailAbs
 public:
 	DetailJpeg(Mp4WriterSinkProps &_props) : DetailAbs(_props) {}
 	void initNewMp4File(std::string &filename);
+	bool set_video_decoder_config(mp4_video_codec codec)
+	{
+		vdc.width = mWidth;
+		vdc.height = mHeight;
+		vdc.codec = codec;
+		return true;
+	}
 	bool write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, frame_sp &inH264ImageFrame);
 };
 
 class DetailH264 : public DetailAbs
 {
 public:
+	
+	char* spsBuffer = 0;
+	char* ppsBuffer = 0;
+	size_t spsSize = 0;
+	size_t ppsSize = 0;
 	DetailH264(Mp4WriterSinkProps &_props) : DetailAbs(_props) {}
 	bool write(frame_sp &inImageFrame, frame_sp &inMp4MetaFrame, frame_sp &inH264ImageFrame);
 	void initNewMp4File(std::string &filename);
+	bool set_video_decoder_config(mp4_video_codec codec)
+	{
+		vdc.width = mWidth;
+		vdc.height = mHeight;
+		vdc.codec = codec;
+		uint8_t* sps_Buffer = (uint8_t*)malloc(spsSize);
+		memcpy(sps_Buffer, spsBuffer, spsSize);
+		uint8_t* pps_Buffer = (uint8_t*)malloc(ppsSize);
+		memcpy(pps_Buffer, ppsBuffer, ppsSize);
+		vdc.avc.sps = sps_Buffer;
+		vdc.avc.pps = pps_Buffer;
+		vdc.avc.pps_size = ppsSize;
+		vdc.avc.sps_size = spsSize;
+		return true;
+	}
 };
 
 bool Mp4WriterSink::validateInputOutputPins()
@@ -309,7 +295,6 @@ void DetailJpeg::initNewMp4File(std::string &filename)
 	now = std::time(nullptr);
 
 	auto ret = mp4_mux_open(filename.c_str(), timescale, now, now, &mux);
-
 	if (mMetadataEnabled)
 	{
 		/* \251too -> �too */
@@ -375,9 +360,13 @@ void DetailJpeg::initNewMp4File(std::string &filename)
 }
 bool DetailH264::write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, frame_sp &inH264ImageFrame)
 {
-	
+	short nextTypeFound = inH264ImageFrame->mFrameType;
+	mutable_buffer& frame = *(inH264ImageFrame.get());
+	H264FrameUtils H264FrameObj;
+	H264FrameObj.parseNALUU(frame, nextTypeFound, spsBuffer, ppsBuffer, spsSize, ppsSize);
 	std::string _nextFrameFileName = mWriterSinkUtils.getFilenameForNextFrame(inH264ImageFrame->timestamp, mProps->baseFolder,
 		mProps->chunkTime, mProps->syncTime, syncFlag);
+//	LOG_INFO << "frames count = " << inH264ImageFrame;
 	if (_nextFrameFileName == "")
 	{
 		LOG_ERROR << "Unable to get a filename for the next frame";
@@ -395,17 +384,7 @@ bool DetailH264::write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, 
 	}
 	//struct mp4_mux_sample mux_sample;
 	
-	std::ifstream syncfile("data/SyncNumber.txt");
-	std::set<uint64_t> syncNumbers;
-	std::string linep;
-	uint64_t syncnum;
-	while (getline(syncfile, linep))
-	{
-		syncNumbers.insert(std::stoi(linep));
-	}
-	syncnum = inH264ImageFrame->fIndex;
-	LOG_INFO << "frame number =" << syncnum;
-	if (syncNumbers.find(syncnum) != syncNumbers.end())
+	if (nextTypeFound == H264Utils::H264_NAL_TYPE::H264_NAL_TYPE_IDR_SLICE)
 	{
 		isKeyFrame = true;
 	}
@@ -464,7 +443,6 @@ void DetailH264::initNewMp4File(std::string &filename)
 	now = std::time(nullptr);
 
 	auto ret = mp4_mux_open(filename.c_str(), timescale, now, now, &mux);
-
 	if (mMetadataEnabled)
 	{
 		/* \251too -> �too */

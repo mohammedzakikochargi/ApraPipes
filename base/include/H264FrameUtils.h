@@ -4,7 +4,8 @@
 using boost::asio::const_buffer;
 using boost::asio::mutable_buffer;
 class Frame;
-class H264FrameUtils : public FrameContainerQueueAdapter {
+class H264FrameUtils : public FrameContainerQueueAdapter
+{
 	enum STATE {
 		INITIAL,
 		SPS_RCVD,
@@ -12,15 +13,9 @@ class H264FrameUtils : public FrameContainerQueueAdapter {
 		WAITING_FOR_IFRAME, // drops
 		NORMAL
 	};
-	const_buffer parseNALU(mutable_buffer& input, short& typeFound);
 	STATE myState;
 	const_buffer sps, pps, sps_pps;
-
-protected:
-	frame_container on_pop_success(frame_container item);
-
-
 public:
-	H264FrameUtils() : myState(INITIAL) {}
-	short getState() { return myState; }
+	const_buffer parseNALUU(mutable_buffer& input, short& typeFound , char*& spsBuffer, char*& ppsBuffer , size_t& spsSize, size_t& ppsSize);
+	static bool getNALUnit(const char* buffer, size_t length, size_t& offset);
 };

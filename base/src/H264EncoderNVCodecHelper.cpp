@@ -366,7 +366,7 @@ private:
 		m_nvcodecResources->m_nvenc.nvEncGetEncodePresetConfig(m_nvcodecResources->m_hEncoder, codecGuid, presetGuid, &presetConfig);
 		memcpy(pIntializeParams->encodeConfig, &presetConfig.presetCfg, sizeof(NV_ENC_CONFIG));
 		pIntializeParams->encodeConfig->frameIntervalP = 1;
-		pIntializeParams->encodeConfig->gopLength = NVENC_INFINITE_GOPLENGTH;
+		pIntializeParams->encodeConfig->gopLength;// = NVENC_INFINITE_GOPLENGTH;
 		if (m_nTargetKbps)
 		{
 			m_encodeConfig.rcParams.averageBitRate = m_nTargetKbps * 1000;

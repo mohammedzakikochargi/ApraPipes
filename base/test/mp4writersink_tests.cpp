@@ -120,7 +120,7 @@ BOOST_AUTO_TEST_CASE(jpg_rgb_24_to_mp4v)
 	int width = 424;
 	int height = 240;
 
-	std::string inFolderPath = "./data/outFrames";
+	std::string inFolderPath = "C:/Users/developer/ApraPipesfork/data/outFrames";
 	std::string outFolderPath = "./data/testOutput/mp4_videos/rgb_24bpp/";
 
 	write(inFolderPath, outFolderPath, width, height);
@@ -219,10 +219,10 @@ BOOST_AUTO_TEST_CASE(setgetprops)
 }
 BOOST_AUTO_TEST_CASE(h264_to_mp4v)
 {
-	int width = 424;
-	int height = 240;
+	int width = 640;
+	int height = 360;
 
-	std::string inFolderPath = "./data/outFrames";
+	std::string inFolderPath = "./data/h264";
 	std::string outFolderPath = "./data/testOutput/mp4_videos/rgb_24bpp/";
 
 	LoggerProps loggerProps;
