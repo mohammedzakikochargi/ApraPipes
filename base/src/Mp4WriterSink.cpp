@@ -420,7 +420,7 @@ bool DetailH264::write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, 
 
 	mp4_mux_track_add_sample(mux, videotrack, &mux_sample);
 
-	if (metatrack != -1 && mMetadataEnabled && inMp4MetaFrame.get())//
+	if (metatrack != -1 && mMetadataEnabled && inMp4MetaFrame.get())
 	{
 
 		mux_sample.buffer = static_cast<uint8_t *>(inMp4MetaFrame->data());

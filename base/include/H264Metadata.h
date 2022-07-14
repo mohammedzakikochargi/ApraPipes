@@ -5,6 +5,8 @@
 class H264Metadata : public FrameMetadata
 {
 public:
+	H264Metadata() : FrameMetadata(FrameType::H264_DATA) {}
+
 	H264Metadata(int _width, int _height) : FrameMetadata(FrameType::H264_DATA) , width(_width), height(_height)
 	{
 		width = _width;
@@ -32,7 +34,14 @@ public:
 	{
 		return height;
 	}
+	void setData(H264Metadata& metadata)
+	{
+		FrameMetadata::setData(metadata);
 
+		width = metadata.width;
+		height = metadata.height;
+		//setDataSize();
+	}
 protected:
 	void initData(int _width, int _height, MemType _memType = MemType::HOST)
 	{

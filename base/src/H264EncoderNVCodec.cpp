@@ -8,6 +8,8 @@
 #include "AIPExceptions.h"
 #include "H264FrameDemuxer.h"
 #include "nvjpeg.h"
+#include "RawImageMetadata.h"
+#include "H264Metadata.h"
 
 class H264EncoderNVCodec::Detail
 {
@@ -81,7 +83,7 @@ private:
 H264EncoderNVCodec::H264EncoderNVCodec(H264EncoderNVCodecProps _props) : Module(TRANSFORM, "H264EncoderNVCodec", _props), mShouldTriggerSOS(true), props(_props)
 {
 	mDetail.reset(new Detail(props));
-	mOutputMetadata = framemetadata_sp(new FrameMetadata(FrameMetadata::H264_DATA));
+	mOutputMetadata = framemetadata_sp(new H264Metadata());
 	mOutputPinId = addOutputPin(mOutputMetadata);
 }
 
@@ -180,6 +182,14 @@ bool H264EncoderNVCodec::processSOS(frame_sp &frame)
 		send(frames);
 	}
 	);
+	auto inputMetadata = frame->getMetadata();
+	auto rawImageMetadata = FrameMetadataFactory::downcast<RawImagePlanarMetadata>(inputMetadata);
+	int width = rawImageMetadata->getWidth(0);
+	int height = rawImageMetadata->getHeight(0);
+
+	auto h264Metadata = H264Metadata(width, height);
+	auto rawOutMetadata = FrameMetadataFactory::downcast<H264Metadata>(mOutputMetadata);
+	rawOutMetadata->setData(h264Metadata);
 	mShouldTriggerSOS = false;
 
 	return true;

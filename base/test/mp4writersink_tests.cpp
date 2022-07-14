@@ -281,10 +281,13 @@ BOOST_AUTO_TEST_CASE(h264EncoderNV_to_h264writer)
 	auto width = 640;
 	auto height = 360;
 
-	std::string inFolderPath = "./data/testOutput/h264images/Raw_YUV420_640x360????.h264";
+	std::string inFolderPath = "./data/Raw_YUV420_640x360/????.raw";
 	std::string outFolderPath = "./data/testOutput/mp4_videos/rgb_24bpp/";
 
-	auto fileReader = boost::shared_ptr<FileReaderModule>(new FileReaderModule(FileReaderModuleProps("./data/Raw_YUV420_640x360/????.raw")));
+	auto fileReaderProps = FileReaderModuleProps(inFolderPath, 0, -1, 4 * 1024 * 1024);
+	fileReaderProps.fps = 24;
+	fileReaderProps.readLoop = false;
+	auto fileReader = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps));
 	auto metadata = framemetadata_sp(new RawImagePlanarMetadata(width, height, ImageMetadata::ImageType::YUV420, size_t(0), CV_8U));
 
 	auto rawImagePin = fileReader->addOutputPin(metadata);
@@ -295,19 +298,8 @@ BOOST_AUTO_TEST_CASE(h264EncoderNV_to_h264writer)
 	copyProps.sync = true;
 	auto copy = boost::shared_ptr<Module>(new CudaMemCopy(copyProps));
 	fileReader->setNext(copy);
-	H264EncoderNVCodecProps h264EncoderNVCodecProps(cuContext);
-	h264EncoderNVCodecProps.targetKbps = 100;
-	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(h264EncoderNVCodecProps));
+	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(cuContext));
 	copy->setNext(encoder);
-
-	//auto fileReaderProps = FileReaderModuleProps(4 * 1024 * 1024);
-//	fileReaderProps.fps = 24;
-	//fileReaderProps.readLoop = false;
-
-	//auto fileReaderh264 = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps));
-//	encoder->setNext(fileReaderh264);
-	/*auto h264ImageMetadata = framemetadata_sp(new H264Metadata(width, height));
-	encoder->addOutputPin(h264ImageMetadata);*/
 
 	auto mp4WriterSinkProps = Mp4WriterSinkProps(10, 1, 24, outFolderPath);
 	mp4WriterSinkProps.logHealth = true;
@@ -316,19 +308,25 @@ BOOST_AUTO_TEST_CASE(h264EncoderNV_to_h264writer)
 	encoder->setNext(mp4WriterSinkP);
 
 
-	BOOST_TEST(fileReader->init());
-	BOOST_TEST(copy->init());
-	BOOST_TEST(encoder->init());
-	//BOOST_TEST(fileReaderh264->init());
-	BOOST_TEST(mp4WriterSinkP->init());
+	boost::shared_ptr<PipeLine> p;
+    p = boost::shared_ptr<PipeLine>(new PipeLine("test"));
+	p->appendModule(fileReader);
 
-	fileReader->play(true);
+	if (!p->init())
+	{
+		throw AIPException(AIP_FATAL, "Engine Pipeline init failed. Check IPEngine Logs for more details.");
+	}
 
-	fileReader->step();
-	copy->step();
-	encoder->step();
-//	fileReaderh264->step();
-	mp4WriterSinkP->step();
+	LOG_ERROR << "processing folder <" << inFolderPath << ">";
+	p->run_all_threaded();
+
+	boost::this_thread::sleep_for(boost::chrono::seconds(40));
+
+	p->stop();
+	p->term();
+	p->wait_for_all();
+	p.reset();
+
 }
 
 BOOST_AUTO_TEST_SUITE_END()
