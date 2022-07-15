@@ -7,12 +7,23 @@
 class H264EncoderNVCodecProps : public ModuleProps
 {
 public:
-	H264EncoderNVCodecProps(apracucontext_sp& _cuContext): targetKbps(0), cuContext(_cuContext)
+	H264EncoderNVCodecProps(uint32_t &_bitRateKbps, apracucontext_sp& _cuContext, uint32_t &_gopLength,uint32_t &_frameRate,GUID& _profile,uint32_t& _enableBFrames) : cuContext(_cuContext), gopLength(_gopLength)
 	{
-		
+		gopLength = _gopLength;
+		frameRate = _frameRate;
+		bitRateKbps = _bitRateKbps;
+		profile = _profile;
+		enableBFrames = _enableBFrames;
 	}
+	H264EncoderNVCodecProps(apracucontext_sp& _cuContext) : bitRateKbps(0), cuContext(_cuContext)
+	{
 
-	uint32_t targetKbps;
+	}
+	uint32_t enableBFrames;
+	uint32_t gopLength = 30;
+	uint32_t bitRateKbps = 1000;
+	uint32_t frameRate = 30;
+	GUID profile ;
 	apracucontext_sp cuContext;
 };
 

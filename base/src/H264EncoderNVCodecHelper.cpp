@@ -1,5 +1,6 @@
 #include "H264EncoderNVCodecHelper.h"
 #include "ExtFrame.h"
+#include "H264EncoderNVCodec.h"
 #include "AIPExceptions.h"
 #include "Logger.h"
 #include "Frame.h"
@@ -8,7 +9,7 @@
 #include <boost/pool/object_pool.hpp>
 #include <thread>
 #include <utility>
-
+#include <initguid.h>
 #include "CudaCommon.h"
 #include "nvEncodeAPI.h"
 
@@ -163,13 +164,17 @@ class H264EncoderNVCodecHelper::Detail
 {
 
 public:
-	Detail(uint32_t targetKbps, apracucontext_sp& cuContext) :
+	Detail(uint32_t& bitRateKbps, apracucontext_sp& cuContext, uint32_t& gopLength, uint32_t& frameRate,GUID& profile,uint32_t& enableBFrames) :
 		m_nWidth(0),
 		m_nHeight(0),
 		m_eBufferFormat(NV_ENC_BUFFER_FORMAT_UNDEFINED),
 		m_nEncoderBuffer(0),
-		m_nTargetKbps(targetKbps),
-		m_nOutSPSPPSPayloadSize(0)
+		m_nBitRateKbps(bitRateKbps),
+		m_nOutSPSPPSPayloadSize(0),
+		m_nGopLength(gopLength),
+		m_nFrameRate(frameRate),
+		m_nProfile(profile),
+		m_nEnableBFrames(enableBFrames)
 	{
 		m_nvcodecResources.reset(new NVCodecResources(cuContext));
 
@@ -350,7 +355,7 @@ private:
 		pIntializeParams->encodeHeight = m_nHeight;
 		pIntializeParams->darWidth = m_nWidth;
 		pIntializeParams->darHeight = m_nHeight;
-		pIntializeParams->frameRateNum = 30;
+		pIntializeParams->frameRateNum = m_nFrameRate;
 		pIntializeParams->frameRateDen = 1;
 		pIntializeParams->enablePTD = 1;
 		pIntializeParams->reportSliceOffsets = 0;
@@ -366,12 +371,21 @@ private:
 		m_nvcodecResources->m_nvenc.nvEncGetEncodePresetConfig(m_nvcodecResources->m_hEncoder, codecGuid, presetGuid, &presetConfig);
 		memcpy(pIntializeParams->encodeConfig, &presetConfig.presetCfg, sizeof(NV_ENC_CONFIG));
 		pIntializeParams->encodeConfig->frameIntervalP = 1;
-		pIntializeParams->encodeConfig->gopLength;// = NVENC_INFINITE_GOPLENGTH;
-		if (m_nTargetKbps)
-		{
-			m_encodeConfig.rcParams.averageBitRate = m_nTargetKbps * 1000;
-		}
+		pIntializeParams->encodeConfig->gopLength = m_nGopLength;// = NVENC_INFINITE_GOPLENGTH;
+		pIntializeParams->encodeConfig->profileGUID = m_nProfile;
+	
+	
+		pIntializeParams->encodeConfig->rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
+		m_nencodeParam.capsToQuery = NV_ENC_CAPS_SUPPORT_DYN_BITRATE_CHANGE;
+			if (m_nBitRateKbps)
+			{
+				m_encodeConfig.rcParams.averageBitRate = m_nBitRateKbps;
+			}
+		
 
+		
+		m_encodeConfig.rcParams.enableLookahead = m_nEnableBFrames;
+		
 		pIntializeParams->encodeConfig->rcParams.rateControlMode = NV_ENC_PARAMS_RC_CONSTQP;
 
 		if (pIntializeParams->presetGUID != NV_ENC_PRESET_LOSSLESS_DEFAULT_GUID && pIntializeParams->presetGUID != NV_ENC_PRESET_LOSSLESS_HP_GUID)
@@ -531,11 +545,16 @@ private:
 	uint32_t m_nHeight;
 	uint32_t m_nPitch;
 	NV_ENC_BUFFER_FORMAT m_eBufferFormat;
-	uint32_t m_nTargetKbps;
+	uint32_t m_nBitRateKbps;
+	uint32_t m_nGopLength ;
+	uint32_t m_nFrameRate;
+	GUID m_nProfile;
+	uint32_t m_nEnableBFrames;
 
 	NV_ENC_INITIALIZE_PARAMS m_initializeParams;
 	NV_ENC_CONFIG m_encodeConfig;
 	int32_t m_nEncoderBuffer;
+	NV_ENC_CAPS_PARAM m_nencodeParam;
 
 	std::function<frame_sp(size_t)> makeFrame;
 	std::function<void(frame_sp&, frame_sp&)> send;
@@ -546,12 +565,13 @@ private:
 	uint32_t m_nOutSPSPPSPayloadSize;
 
 private:
+	boost::shared_ptr<H264EncoderNVCodecProps> mProps;
 	boost::shared_ptr<NVCodecResources> m_nvcodecResources;
 };
 
-H264EncoderNVCodecHelper::H264EncoderNVCodecHelper(uint32_t targetKbps, apracucontext_sp& cuContext)
+H264EncoderNVCodecHelper::H264EncoderNVCodecHelper(uint32_t& _bitRateKbps, apracucontext_sp& cuContext , uint32_t& _gopLength, uint32_t& _frameRate,GUID &_profile,uint32_t& _enableBFrames)
 {
-	mDetail.reset(new Detail(targetKbps, cuContext));
+	mDetail.reset(new Detail(_bitRateKbps, cuContext,_gopLength,_frameRate,_profile,_enableBFrames));
 }
 
 H264EncoderNVCodecHelper::~H264EncoderNVCodecHelper()

@@ -14,9 +14,9 @@
 class H264EncoderNVCodec::Detail
 {
 public:
-	Detail(H264EncoderNVCodecProps &_props)
+	Detail(H264EncoderNVCodecProps &_props) : mProps(_props)
 	{
-		helper.reset(new H264EncoderNVCodecHelper(_props.targetKbps, _props.cuContext));
+		helper.reset(new H264EncoderNVCodecHelper(_props.bitRateKbps, _props.cuContext,_props.gopLength,_props.frameRate,_props.profile,_props.enableBFrames));
 	}
 
 	~Detail()
@@ -75,6 +75,7 @@ public:
 		return helper->getSPSPPS(buffer, size, width, height);
 	}
 
+	H264EncoderNVCodecProps mProps;
 private:
 	boost::shared_ptr<H264EncoderNVCodecHelper> helper;
 
@@ -82,7 +83,7 @@ private:
 
 H264EncoderNVCodec::H264EncoderNVCodec(H264EncoderNVCodecProps _props) : Module(TRANSFORM, "H264EncoderNVCodec", _props), mShouldTriggerSOS(true), props(_props)
 {
-	mDetail.reset(new Detail(props));
+	mDetail.reset(new Detail(_props));
 	mOutputMetadata = framemetadata_sp(new H264Metadata());
 	mOutputPinId = addOutputPin(mOutputMetadata);
 }

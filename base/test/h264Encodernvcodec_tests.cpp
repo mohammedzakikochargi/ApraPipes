@@ -19,6 +19,7 @@
 #include "StatSink.h"
 #include <thread>
 
+//#include "nvEncodeAPI.h"
 #include "CudaCommon.h"
 
 BOOST_AUTO_TEST_SUITE(h264encodernvcodec_tests)
@@ -30,6 +31,9 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360)
 	// metadata is known
 	auto width = 640;
 	auto height = 360;
+	uint32_t gopLength = 25;
+	uint32_t bitRateKbps = 1000;
+	uint32_t frameRate = 30;
 
 	auto fileReader = boost::shared_ptr<FileReaderModule>(new FileReaderModule(FileReaderModuleProps("./data/Raw_YUV420_640x360/????.raw")));
 	auto metadata = framemetadata_sp(new RawImagePlanarMetadata(width, height, ImageMetadata::ImageType::YUV420, size_t(0), CV_8U));
@@ -43,9 +47,9 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360)
 	copyProps.sync = true;
 	auto copy = boost::shared_ptr<Module>(new CudaMemCopy(copyProps));
 	fileReader->setNext(copy);
-	H264EncoderNVCodecProps h264EncoderNVCodecProps(cuContext);
-	h264EncoderNVCodecProps.targetKbps = 100;
-	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(h264EncoderNVCodecProps));
+	//H264EncoderNVCodecProps h264EncoderNVCodecProps(cuContext);
+	//h264EncoderNVCodecProps.targetKbps = 100;
+	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(cuContext)));
 	copy->setNext(encoder);
 
 	auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/h264images/Raw_YUV420_640x360????.h264")));
@@ -76,7 +80,6 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360)
 BOOST_AUTO_TEST_CASE(yuv420_640x360_resize)
 {
 	auto cuContext = apracucontext_sp(new ApraCUcontext());
-
 	// metadata is known
 	auto width = 640;
 	auto height = 360;
