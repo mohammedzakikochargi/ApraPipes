@@ -30,9 +30,9 @@ void QuePushStrategy::addQue(std::string dstModuleId, boost::shared_ptr<FrameCon
 	mQueByModule[dstModuleId] = que;
 }
 
-void QuePushStrategy::push(std::string dstModuleId, frame_container& frames)
+void QuePushStrategy::push(std::string dstModuleId, frame_container& frames, bool priority)
 {
-	mQueByModule[dstModuleId]->push(frames);
+	mQueByModule[dstModuleId]->push(frames,priority);
 }
 
 NonBlockingAnyPushStrategy::NonBlockingAnyPushStrategy(std::string& srcModuleId) : QuePushStrategy(srcModuleId), mDropCount(0), mPrintFrequency(1000)

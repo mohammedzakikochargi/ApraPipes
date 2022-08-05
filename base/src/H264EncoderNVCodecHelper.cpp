@@ -164,6 +164,8 @@ class H264EncoderNVCodecHelper::Detail
 {
 
 public:
+
+	
 	Detail(uint32_t& bitRateKbps, apracucontext_sp& cuContext, uint32_t& gopLength, uint32_t& frameRate,GUID& profile,uint32_t& enableBFrames) :
 		m_nWidth(0),
 		m_nHeight(0),
@@ -582,6 +584,13 @@ H264EncoderNVCodecHelper::~H264EncoderNVCodecHelper()
 bool H264EncoderNVCodecHelper::init(uint32_t width, uint32_t height, uint32_t pitch, ImageMetadata::ImageType imageType, std::function<frame_sp(size_t)> makeFrame, std::function<void(frame_sp&, frame_sp&)> send)
 {
 	return mDetail->init(width, height, pitch, imageType, makeFrame, send);
+}
+
+bool H264EncoderNVCodecHelper::forceIFrame()
+{
+	NV_ENC_PIC_PARAMS param;
+	param.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
+	return true;
 }
 
 bool H264EncoderNVCodecHelper::process(frame_sp &frame)

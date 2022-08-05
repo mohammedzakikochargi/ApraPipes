@@ -19,14 +19,21 @@ public:
 
 	explicit bounded_buffer(size_type capacity) : m_unread(0), m_capacity(capacity), m_accept(true) {}
 
-	void push(typename boost::call_traits<value_type>::param_type item)
+	void push(typename boost::call_traits<value_type>::param_type item, bool priority = false)
 	{ // `param_type` represents the "best" way to pass a parameter of type `value_type` to a method.
 
 		boost::mutex::scoped_lock lock(m_mutex);
 		m_not_full.wait(lock, boost::bind(&bounded_buffer<value_type>::is_ready_to_accept, this));
 		if (is_not_full() && m_accept)
 		{
-			m_container.push_front(item);
+			if (!priority)
+			{
+				m_container.push_front(item);
+			}
+			else
+			{
+				m_container.push_back(item);
+			}
 			++m_unread;
 			lock.unlock();
 			m_not_empty.notify_one();

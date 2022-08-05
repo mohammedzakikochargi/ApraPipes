@@ -29,6 +29,8 @@ class PipeLine {
 	
 	std::string mName;
 	container_type modules;
+	// only 1 ctrl module supported
+	boost::shared_ptr<Module> controlModule = nullptr;
 	bool validate();
 	bool checkCyclicDependency();
 public:
@@ -36,7 +38,9 @@ public:
 	~PipeLine();
 	std::string getName() { return mName; }
 	bool appendModule(boost::shared_ptr<Module> pModule);
+
 	bool init();
+	void addControlModuleToPipeline(boost::shared_ptr<Module> pipelineControl);
 	void run_all_threaded();
 	void run_all_threaded_withpause();
 	void pause();

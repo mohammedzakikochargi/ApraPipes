@@ -2,9 +2,6 @@
 #include "H264Utils.h"
 #include "Frame.h"
 
-
-
-
 H264Utils::H264_NAL_TYPE H264Utils::getNALUType(Frame *frm)
 {
 	char* p1 = static_cast<char*>(frm->data());
@@ -15,8 +12,6 @@ H264Utils::H264_NAL_TYPE H264Utils::getNALUType(const char *buffer)
 {
 	return (H264_NAL_TYPE)(buffer[4] & 0x1F);
 }
-
-
 
 bool H264Utils::getNALUnit(const char *buffer, size_t length, size_t &offset)
 {

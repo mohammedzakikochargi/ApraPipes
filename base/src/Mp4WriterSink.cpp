@@ -1,6 +1,7 @@
 #include <ctime>
 #include <fstream>
 
+#include "H264EncoderNVCodec.h"
 #include "FrameMetadata.h"
 #include "Frame.h"
 #include "H264Utils.h"
@@ -8,18 +9,21 @@
 #include "Mp4WriterSink.h"
 #include "Mp4WriterSinkUtils.h"
 #include "EncodedImageMetadata.h"
+#include "Module.h"
 #include "libmp4.h"
 #include "H264FrameUtils.h"
 #include "list.h"
 #include "PropsChangeMetadata.h"
 #include "H264Metadata.h"
 
-class DetailAbs
+class DetailAbs 
 {
 public:
-	DetailAbs(Mp4WriterSinkProps &_props)
+//	Mp4WriterSink* myModule;
+	DetailAbs(Mp4WriterSinkProps _module)//:myModule(_module)
 	{
-		setProps(_props);
+		setProps(_module);
+		//setProps(_module->getProps());
 		mNextFrameFileName = "";
 		mux = nullptr;
 		mMetadataEnabled = false;
@@ -66,6 +70,7 @@ public:
 		else
 			return xStr;
 	}
+
 	virtual void initNewMp4File(std::string &filename) = 0;
 	virtual bool write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, frame_sp &inH264ImageFrame) = 0;
 
@@ -84,7 +89,6 @@ public:
 	}
 
 	boost::shared_ptr<Mp4WriterSinkProps> mProps;
-
 	bool mMetadataEnabled = false;
 	bool isKeyFrame;
 protected:
@@ -128,12 +132,20 @@ public:
 class DetailH264 : public DetailAbs
 {
 public:
-	
-	char* spsBuffer = 0;
-	char* ppsBuffer = 0;
+	char* spsBuffer = nullptr;
+	char* ppsBuffer = nullptr;
+	uint8_t* sps = 0;
+	uint8_t* pps = 0;
 	size_t spsSize = 0;
 	size_t ppsSize = 0;
-	DetailH264(Mp4WriterSinkProps &_props) : DetailAbs(_props) {}
+	char* iFrameBuffer = nullptr;
+	
+	DetailH264(Mp4WriterSinkProps& _props, std::function<bool(bool priority, bool forceBlockingPush)> _sendCommand, std::function<frame_sp(size_t size)> _makeFrame) : DetailAbs(_props)
+	{
+		sendCommand = _sendCommand;
+		makeFrame = _makeFrame;
+	}
+
 	bool write(frame_sp &inImageFrame, frame_sp &inMp4MetaFrame, frame_sp &inH264ImageFrame);
 	void initNewMp4File(std::string &filename);
 	bool set_video_decoder_config(mp4_video_codec codec)
@@ -145,90 +157,24 @@ public:
 		memcpy(sps_Buffer, spsBuffer, spsSize);
 		uint8_t* pps_Buffer = (uint8_t*)malloc(ppsSize);
 		memcpy(pps_Buffer, ppsBuffer, ppsSize);
-		vdc.avc.sps = sps_Buffer;
-		vdc.avc.pps = pps_Buffer;
+		pps = pps_Buffer;
+		sps = sps_Buffer;
+		vdc.avc.sps = sps;
+		vdc.avc.pps = pps;
 		vdc.avc.pps_size = ppsSize;
 		vdc.avc.sps_size = spsSize;
 		return true;
 	}
+public:
+	std::function<bool(bool priority, bool forceBlockingPush)> sendCommand;
+	std::function<frame_sp(size_t size)> makeFrame;
+private:
+	boost::shared_ptr<H264EncoderNVCodec> mDetail;
 };
-
-bool Mp4WriterSink::validateInputOutputPins()
-{
-	if (getNumberOfInputsByType(FrameMetadata::H264_DATA) != 1 && getNumberOfInputsByType(FrameMetadata::ENCODED_IMAGE) != 1) //|| FrameMetadata::H264_DATA
-	{
-		LOG_ERROR << "<" << getId() << ">::validateInputOutputPins expected 1 pin of ENCODED_IMAGE. Actual<" << getNumberOfInputPins() << ">";
-		return false;
-	}
-	return true;
-}
-
-bool Mp4WriterSink::validateInputPins()
-{
-	if (getNumberOfInputPins() > 2)
-	{
-		LOG_ERROR << "<" << getId() << ">::validateInputPins size is expected to be 2. Actual<" << getNumberOfInputPins() << ">";
-		return false;
-	}
-
-	auto inputPinIdMetadataMap = getInputMetadata();
-	for (auto const &element : inputPinIdMetadataMap)
-	{
-		auto& metadata = element.second;
-		auto mFrameType = metadata->getFrameType();
-		if (mFrameType != FrameMetadata::ENCODED_IMAGE && mFrameType != FrameMetadata::MP4_VIDEO_METADATA && mFrameType != FrameMetadata::H264_DATA)
-		{
-			LOG_ERROR << "<" << getId() << ">::validateInputPins input frameType is expected to be ENCODED_IMAGE or MP4_VIDEO_METADATA. Actual<" << mFrameType << ">";
-			return false;
-		}
-
-		FrameMetadata::MemType memType = metadata->getMemType();
-		if (memType != FrameMetadata::MemType::HOST)
-		{
-			LOG_ERROR << "<" << getId() << ">::validateInputPins input memType is expected to be HOST. Actual<" << memType << ">";
-			return false;
-		}
-	}
-	return true;
-}
-
-Mp4WriterSink::Mp4WriterSink(Mp4WriterSinkProps _props)
-	: Module(SINK, "Mp4WriterSink", _props), mProps2(_props)
-{
-}
-
-Mp4WriterSink::~Mp4WriterSink() {}
-
-bool Mp4WriterSink::init()
-{
-	if (!Module::init())
-	{
-		return false;
-	}
-	auto inputPinIdMetadataMap = getInputMetadata();
-	for (auto const &element : inputPinIdMetadataMap)
-	{
-		auto& metadata = element.second;
-		auto mFrameType = metadata->getFrameType();
-		if (mFrameType == FrameMetadata::FrameType::ENCODED_IMAGE)
-		{
-			mDetail = boost::shared_ptr<DetailAbs>(new DetailJpeg(mProps2));
-		}
-		else if (mFrameType == FrameMetadata::FrameType::H264_DATA)
-		{
-			mDetail = boost::shared_ptr<DetailAbs>(new DetailH264(mProps2));
-		}
-		else
-		{
-			LOG_ERROR << "The input is illegal";
-		}
-	}
-	return Module::init();
-}
 
 bool DetailJpeg::write(frame_sp & inImageFrame, frame_sp & inMp4MetaFrame, frame_sp & inH264ImageFrame)
 {
-	std::string _nextFrameFileName = mWriterSinkUtils.getFilenameForNextFrame(inImageFrame->timestamp, mProps->baseFolder,
+	std::string _nextFrameFileName = mWriterSinkUtils.getFilenameForNextFrameJpeg(inImageFrame->timestamp, mProps->baseFolder,
 		mProps->chunkTime, mProps->syncTime, syncFlag);
 	if (_nextFrameFileName == "")
 	{
@@ -275,6 +221,7 @@ bool DetailJpeg::write(frame_sp & inImageFrame, frame_sp & inMp4MetaFrame, frame
 
 	if (metatrack != -1 && mMetadataEnabled && inMp4MetaFrame.get())
 	{
+		
 		mux_sample.buffer = static_cast<uint8_t *>(inMp4MetaFrame->data());
 		mux_sample.len = inMp4MetaFrame->size();
 		mp4_mux_track_add_sample(mux, metatrack, &mux_sample);
@@ -358,15 +305,21 @@ void DetailJpeg::initNewMp4File(std::string &filename)
 		}
 	}
 }
+
 bool DetailH264::write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, frame_sp &inH264ImageFrame)
 {
-	short nextTypeFound = inH264ImageFrame->mFrameType;
+	
+	short nextTypeFound;
 	mutable_buffer& frame = *(inH264ImageFrame.get());
-	H264FrameUtils H264FrameObj;
-	H264FrameObj.parseNALUU(frame, nextTypeFound, spsBuffer, ppsBuffer, spsSize, ppsSize);
-	std::string _nextFrameFileName = mWriterSinkUtils.getFilenameForNextFrame(inH264ImageFrame->timestamp, mProps->baseFolder,
-		mProps->chunkTime, mProps->syncTime, syncFlag);
-//	LOG_INFO << "frames count = " << inH264ImageFrame;
+	Mp4WriterSinkProps props;
+	H264FrameUtils H264FrameObj(makeFrame);
+	boost::shared_ptr<H264FrameUtils> h264Obj;
+	
+	H264FrameObj.parseNALUU(frame, nextTypeFound, spsBuffer, ppsBuffer, spsSize, ppsSize, iFrameBuffer);
+	
+	std::string _nextFrameFileName = mWriterSinkUtils.getFilenameForNextFrameH264(inH264ImageFrame->timestamp, mProps->baseFolder,
+		mProps->chunkTime, mProps->syncTime, syncFlag, nextTypeFound);
+	
 	if (_nextFrameFileName == "")
 	{
 		LOG_ERROR << "Unable to get a filename for the next frame";
@@ -374,7 +327,9 @@ bool DetailH264::write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, 
 	}
 	if (mNextFrameFileName != _nextFrameFileName)
 	{
+
 		mNextFrameFileName = _nextFrameFileName;
+		//sendCommand(true, false); 
 		initNewMp4File(mNextFrameFileName);
 	}
 	if (syncFlag)
@@ -382,7 +337,6 @@ bool DetailH264::write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, 
 		mp4_mux_sync(mux);
 		syncFlag = false;
 	}
-	//struct mp4_mux_sample mux_sample;
 	
 	if (nextTypeFound == H264Utils::H264_NAL_TYPE::H264_NAL_TYPE_IDR_SLICE)
 	{
@@ -419,19 +373,19 @@ bool DetailH264::write(frame_sp &inEncodedImageFrame, frame_sp &inMp4MetaFrame, 
 	mux_sample.dts = mux_sample.dts + static_cast<int64_t>((params.timescale / 1000) * diffInMsecs);
 
 	mp4_mux_track_add_sample(mux, videotrack, &mux_sample);
-
+	
 	if (metatrack != -1 && mMetadataEnabled && inMp4MetaFrame.get())
-	{
-
-		mux_sample.buffer = static_cast<uint8_t *>(inMp4MetaFrame->data());
-		mux_sample.len = inMp4MetaFrame->size();
-		mp4_mux_track_add_sample(mux, metatrack, &mux_sample);
-	}
+	{	
+	mux_sample.buffer = static_cast<uint8_t *>(inMp4MetaFrame->data());
+	mux_sample.len = inMp4MetaFrame->size();
+	mp4_mux_track_add_sample(mux, metatrack, &mux_sample);
+    }
 	return true;
 }
 
 void DetailH264::initNewMp4File(std::string &filename)
 {
+	// #CT
 	if (mux)
 	{
 		mp4_mux_close(mux);
@@ -507,6 +461,79 @@ void DetailH264::initNewMp4File(std::string &filename)
 	}
 }
 
+Mp4WriterSink::Mp4WriterSink(Mp4WriterSinkProps _props)
+	: Module(SINK, "Mp4WriterSink", _props), mProps2(_props)
+{
+}
+
+Mp4WriterSink::~Mp4WriterSink() {}
+
+bool Mp4WriterSink::init()
+{
+	if (!Module::init())
+	{
+		return false;
+	}
+	auto inputPinIdMetadataMap = getInputMetadata();
+	for (auto const& element : inputPinIdMetadataMap)
+	{
+		auto& metadata = element.second;
+		auto mFrameType = metadata->getFrameType();
+		if (mFrameType == FrameMetadata::FrameType::ENCODED_IMAGE)//std::function<frame_sp(size_t size)> makeFrame;
+		{
+			mDetail.reset(new DetailJpeg(mProps2));
+		}
+		else if (mFrameType == FrameMetadata::FrameType::H264_DATA)
+		{
+			//mDetail = boost::shared_ptr<DetailAbs>(new DetailH264(mProps2, sendCommand_));
+			mDetail.reset(new DetailH264(mProps2,
+				[&](bool priority, bool forceBlockingPush)
+				{ return sendCommand(priority, forceBlockingPush); }
+				, [&](size_t size)
+				{return makeFrame(size); }));
+		}
+	}
+	return Module::init();
+}
+
+bool Mp4WriterSink::validateInputOutputPins()
+{
+	if (getNumberOfInputsByType(FrameMetadata::H264_DATA) != 1 && getNumberOfInputsByType(FrameMetadata::ENCODED_IMAGE) != 1) //|| FrameMetadata::H264_DATA
+	{
+		LOG_ERROR << "<" << getId() << ">::validateInputOutputPins expected 1 pin of ENCODED_IMAGE. Actual<" << getNumberOfInputPins() << ">";
+		return false;
+	}
+	return true;
+}
+
+bool Mp4WriterSink::validateInputPins()
+{
+	if (getNumberOfInputPins() > 2)
+	{
+		LOG_ERROR << "<" << getId() << ">::validateInputPins size is expected to be 2. Actual<" << getNumberOfInputPins() << ">";
+		return false;
+	}
+
+	auto inputPinIdMetadataMap = getInputMetadata();
+	for (auto const& element : inputPinIdMetadataMap)
+	{
+		auto& metadata = element.second;
+		auto mFrameType = metadata->getFrameType();
+		if (mFrameType != FrameMetadata::ENCODED_IMAGE && mFrameType != FrameMetadata::MP4_VIDEO_METADATA && mFrameType != FrameMetadata::H264_DATA)
+		{
+			LOG_ERROR << "<" << getId() << ">::validateInputPins input frameType is expected to be ENCODED_IMAGE or MP4_VIDEO_METADATA. Actual<" << mFrameType << ">";
+			return false;
+		}
+
+		FrameMetadata::MemType memType = metadata->getMemType();
+		if (memType != FrameMetadata::MemType::HOST)
+		{
+			LOG_ERROR << "<" << getId() << ">::validateInputPins input memType is expected to be HOST. Actual<" << memType << ">";
+			return false;
+		}
+	}
+	return true;
+}
 bool Mp4WriterSink::setMetadata(framemetadata_sp &inputMetadata)
 {
 	// #Dec_24_Review - this function seems to do nothing
@@ -542,17 +569,18 @@ bool Mp4WriterSink::shouldTriggerSOS()
 }
 
 bool Mp4WriterSink::term()
-{
+{ 
 	mDetail->attemptFileClose();
 	return true;
 }
 
 bool Mp4WriterSink::process(frame_container& frames)
 {
-	auto imageFrame = getFrameByType(frames, FrameMetadata::FrameType::ENCODED_IMAGE);
-	auto imgFrame = getFrameByType(frames, FrameMetadata::FrameType::H264_DATA);
+	auto jpegImageFrame = getFrameByType(frames, FrameMetadata::FrameType::ENCODED_IMAGE);
+	auto h264ImgageFrame = getFrameByType(frames, FrameMetadata::FrameType::H264_DATA);
 	auto mp4metaFrame = getFrameByType(frames, FrameMetadata::FrameType::MP4_VIDEO_METADATA);
-	if (isFrameEmpty(imageFrame) && isFrameEmpty(imgFrame))
+	
+	if (isFrameEmpty(jpegImageFrame) && isFrameEmpty(h264ImgageFrame))
 	{
 		LOG_ERROR << "Image Frame is empty. Unable to write.";
 		// #Dec_24_Review - return false may do some bad things - it calls onStepFail - return true instead
@@ -563,14 +591,14 @@ bool Mp4WriterSink::process(frame_container& frames)
 	if (isFrameEmpty(mp4metaFrame) && mDetail->mMetadataEnabled)
 	{
 		// #Dec_24_Review - why to log error level ? can skip logging ?
-		LOG_INFO << "empty MP4_VIDEO_METADATA frame fIndex<" << imageFrame->fIndex << ">";
+		LOG_INFO << "empty MP4_VIDEO_METADATA frame fIndex<" << jpegImageFrame->fIndex << ">";
 	}
 
 	try
 	{
-		if (!mDetail->write(imageFrame, mp4metaFrame, imgFrame))
+		if (!mDetail->write(jpegImageFrame, mp4metaFrame, h264ImgageFrame))
 		{
-			LOG_FATAL << "Error occured while writing mp4 file<>" << imageFrame->fIndex;
+			LOG_FATAL << "Error occured while writing mp4 file<>" << jpegImageFrame->fIndex;
 			// #Dec_24_Review - return false may do some bad things - it calls onStepFail - do you want to throw exception instead ?
 			return true;
 		}

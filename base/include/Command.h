@@ -10,22 +10,25 @@ public:
 		None,
 		FileReaderModule,
 		Relay,
-		Step
+		Step,
+		iFrame,
 	};
 
 	Command()
 	{
 		type = CommandType::None;
+		priority = false;
 	}
 
-	Command(CommandType _type)
+	Command(CommandType _type, bool _priority = false)
 	{
 		type = _type;
+		priority = _priority;
 	}
 
 	size_t getSerializeSize()
 	{
-		return 1024 + sizeof(type);
+		return 1024 + sizeof(type) + sizeof(priority);
 	}
 
 	CommandType getType()
@@ -37,9 +40,10 @@ private:
 	friend class boost::serialization::access;
 	template<class Archive>
 	void serialize(Archive & ar, const unsigned int /* file_version */) {
-		ar & type;
+		ar& type;
+		ar& priority;
 	}
-
+	bool priority = false;
 	CommandType type;
 };
 
@@ -164,6 +168,26 @@ private:
 	void serialize(Archive & ar, const unsigned int /* file_version */) {
 		ar & boost::serialization::base_object<Command>(*this);		
 	}
+};
 
+class iFrameCommand : public Command
+{
+public:
+	iFrameCommand() : Command(CommandType::iFrame)
+	{
 
+	}
+
+	size_t getSerializeSize()
+	{
+		return Command::getSerializeSize();
+	}
+private:
+	friend class boost::serialization::access;
+	template<class Archive>
+	void serialize(Archive& ar, const unsigned int) {
+		ar& boost::serialization::base_object<Command>(*this);
+
+		ar& currentIndex;
+	}
 };

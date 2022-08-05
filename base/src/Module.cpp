@@ -19,7 +19,7 @@ class Module::Profiler
 	using sys_clock = std::chrono::system_clock;
 
 public:
-	Profiler(string &id, bool _shouldLog, int _printFrequency, std::function<string()> _getPoolHealthRecord) : moduleId(id), shouldLog(_shouldLog), mPipelineFps(0), printFrequency(_printFrequency)
+	Profiler(string& id, bool _shouldLog, int _printFrequency, std::function<string()> _getPoolHealthRecord) : moduleId(id), shouldLog(_shouldLog), mPipelineFps(0), printFrequency(_printFrequency)
 	{
 		getPoolHealthRecord = _getPoolHealthRecord;
 	}
@@ -120,11 +120,11 @@ Module::Module(Kind nature, string name, ModuleProps _props) : mRunning(false), 
 	pacer = boost::shared_ptr<PaceMaker>(new PaceMaker(_props.fps));
 	auto tempId = getId();
 	mProfiler.reset(new Profiler(tempId, _props.logHealth, _props.logHealthFrequency, [&]() -> std::string {
-		if(!mpFrameFactory.get()){
+		if (!mpFrameFactory.get()) {
 			return "";
 		}
-		 return mpFrameFactory->getPoolHealthRecord(); 
-	}));
+		return mpFrameFactory->getPoolHealthRecord();
+		}));
 	if (_props.skipN > _props.skipD)
 	{
 		throw AIPException(AIP_ROI_OUTOFRANGE, "skipN <= skipD");
@@ -158,7 +158,12 @@ uint64_t Module::getTickCounter()
 	return mProfiler->getTickCounter();
 }
 
-void Module::setProps(ModuleProps &props)
+void Module::setControlModule(boost::shared_ptr<Module> _mControl)
+{
+	mControl = _mControl;
+}
+
+void Module::setProps(ModuleProps& props)
 {
 	if (props.qlen != mProps->qlen)
 	{
@@ -246,7 +251,7 @@ bool Module::setNext(boost::shared_ptr<Module> next, vector<string> &pinIdArr, b
 			mConnections.erase(nextModuleId);
 			throw AIPException(AIP_PIN_NOTFOUND, msg);
 		}
-		
+
 		framemetadata_sp metadata = mOutputPinIdFrameFactoryMap[pinId]->getFrameMetadata();
 		// Set input meta here
 		try
@@ -453,9 +458,9 @@ bool Module::init()
 	return ret;
 }
 
-bool Module::push(frame_container frameContainer)
+bool Module::push(frame_container frameContainer,bool priority)
 {
-	mQue->push(frameContainer);
+	mQue->push(frameContainer,priority);
 	return true;
 }
 
@@ -491,7 +496,7 @@ bool Module::isFull()
 	return ret;
 }
 
-bool Module::send(frame_container &frames, bool forceBlockingPush)
+bool Module::send(frame_container &frames, bool forceBlockingPush,bool priority)
 {
 	// mFindex may be propagated for EOS, EOP, Command, PropsChange also - which is wrong
 	uint64_t fIndex = 0;
@@ -603,7 +608,7 @@ bool Module::send(frame_container &frames, bool forceBlockingPush)
 		// next module push
 		if (!forceBlockingPush)
 		{
-			mQuePushStrategy->push(nextModuleId, requiredPins);
+			mQuePushStrategy->push(nextModuleId, requiredPins,priority);
 		}
 		else
 		{
@@ -614,7 +619,24 @@ bool Module::send(frame_container &frames, bool forceBlockingPush)
 	return mQuePushStrategy->flush();
 }
 
-boost_deque<frame_sp> Module::getFrames(frame_container &frames)
+bool Module::sendCommand(bool priority, bool forceBlockingPush)
+{
+	//	 create a command with  priority
+	Command cmd(Command::iFrame, priority);
+	auto cmdSize = cmd.getSerializeSize();
+	auto frame = makeCommandFrame(cmdSize, mCommandMetadata);
+	Utils::serialize(cmd, frame->data(), cmdSize);
+
+	frame_container frames;
+	frames.insert(make_pair("control_command", frame));
+
+	auto& nextModuleId = mControl->myId;
+	auto ctrlModuleQ = mControl->getQue();
+	ctrlModuleQ->push(frames, priority);
+	return true;
+}
+
+boost_deque<frame_sp> Module::getFrames(frame_container & frames)
 {
 	boost_deque<frame_sp> frames_arr;
 	for (frame_container::const_iterator it = frames.begin(); it != frames.end(); it++)
@@ -1138,7 +1160,7 @@ bool Module::preProcessNonSource(frame_container &frames)
 					if (!metadata->isSet())
 					{
 						throw AIPException(AIP_FATAL, getId() + "<>Transform FrameFactory is constructed without metadata set");
-					}					
+					}     
 					mOutputPinIdFrameFactoryMap[me.first].reset(new FrameFactory(metadata, mProps->maxConcurrentFrames));
 				}
 			}

@@ -93,6 +93,16 @@ bool PipeLine::validate()
 	return true;
 }
 
+void PipeLine::addControlModuleToPipeline(boost::shared_ptr<Module> pipelineControl)
+{
+	for (auto i = modules.begin(); i != modules.end(); i++)
+	{
+		Module& m = *(i->get());
+		m.setControlModule(pipelineControl);
+	}
+
+	controlModule = pipelineControl;
+}
 bool PipeLine::init()
 {
 	if(!checkCyclicDependency())
@@ -126,6 +136,22 @@ bool PipeLine::init()
 			return false;
 		}
 	}
+
+	// if control module present, init it now
+	if (controlModule)
+	{
+		try 
+		{
+			controlModule->init();
+		}
+		catch (...)
+		{
+			LOG_ERROR << "Failed init <<" << controlModule->getId() << ">";
+			myStatus = PL_INITFAILED;
+			return false;
+		}
+	}
+
 	myStatus = PL_INITED;
 	LOG_TRACE << " Pipeline initialized";
 	return true;
@@ -135,6 +161,12 @@ bool PipeLine::init()
 void PipeLine::term()
 {
 	if (myStatus >= PL_TERMINATING)
+	{
+		LOG_INFO << "Pipeline status " << getStatus() << " Can not be terminated !";
+		return;
+	}
+
+	if (controlModule)
 	{
 		LOG_INFO << "Pipeline status " << getStatus() << " Can not be terminated !";
 		return;
@@ -150,6 +182,12 @@ void PipeLine::run_all_threaded()
 	{
 		Module& m = *(i->get());
 		m.myThread=boost::thread(ref(m));
+	}
+
+	if (controlModule)
+	{
+		Module& m = *(controlModule.get());
+		m.myThread = boost::thread(ref(m));
 	}
 
 	mPlay = true;
@@ -172,6 +210,14 @@ void PipeLine::pause()
 		}
 	}
 
+	if (controlModule)
+	{
+		if (controlModule.get()->getNature() == Module::CONTROL)
+		{
+			controlModule.get()->play(false);
+		}
+	}
+
 	mPlay = false;
 }
 
@@ -182,6 +228,14 @@ void PipeLine::play()
 		if (i->get()->getNature() == Module::SOURCE)
 		{
 			i->get()->play(true);
+		}
+	}
+
+	if (controlModule)
+	{
+		if (controlModule.get()->getNature() == Module::CONTROL)
+		{
+			controlModule.get()->play(true);
 		}
 	}
 
@@ -203,6 +257,14 @@ void PipeLine::step()
 			i->get()->queueStep();
 		}
 	}
+
+	if (controlModule)
+	{
+		if (controlModule.get()->getNature() == Module::CONTROL)
+		{
+			controlModule.get()->queueStep();
+		}
+	}
 }
 
 void PipeLine::stop()
@@ -220,6 +282,14 @@ void PipeLine::stop()
 			i->get()->stop();
 		}
 	}
+
+	if (controlModule)
+	{
+		if (controlModule.get()->getNature() == Module::CONTROL)
+		{
+			controlModule.get()->stop();
+		}
+	}
 }
 
 void PipeLine::wait_for_all(bool ignoreStatus)
@@ -233,6 +303,12 @@ void PipeLine::wait_for_all(bool ignoreStatus)
 	for (auto i = modules.begin(); i != modules.end(); i++)
 	{
 		Module& m = *(i->get());
+		m.myThread.join();
+	}
+
+	if (controlModule)
+	{
+		Module& m = *(controlModule.get());
 		m.myThread.join();
 	}
 }
@@ -257,6 +333,13 @@ void PipeLine::interrup_wait_for_all()
 		Module& m = *(i->get());
 		m.myThread.join();
 	}
+
+	if (controlModule)
+	{
+		Module& m = *(controlModule.get());
+		m.myThread.join();
+	}
+
 	myStatus = PL_STOPPED;
 }
 

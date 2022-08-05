@@ -4,9 +4,9 @@
 FrameContainerQueue::FrameContainerQueue(size_t capacity) :bounded_buffer<frame_container>(capacity) {
 }
 
-void FrameContainerQueue::push(frame_container item)
+void FrameContainerQueue::push(frame_container item , bool priority )
 {
-	bounded_buffer<frame_container>::push(item);
+	bounded_buffer<frame_container>::push(item,priority);
 }
 
 void FrameContainerQueue::push_drop_oldest(frame_container item)

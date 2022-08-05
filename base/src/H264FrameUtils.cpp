@@ -5,6 +5,7 @@
 #include "Frame.h"
 #include "FrameMetadata.h"
 #include "FrameContainerQueue.h"
+#include "Mp4WriterSink.h"
 #include "H264Utils.h"
 #include "Logger.h"
 
@@ -26,15 +27,16 @@ bool H264FrameUtils::getNALUnit(const char* buffer, size_t length, size_t& offse
 
 	return false;
 }
-const_buffer H264FrameUtils::parseNALUU(mutable_buffer& input, short& typeFound, char*& spsBuffer, char*& ppsBuffer, size_t& spsSize, size_t& ppsSize)
+const_buffer H264FrameUtils::parseNALUU(mutable_buffer& input, short& typeFound,char*& spsBuffer,char*& ppsBuffer,size_t& spsSize,size_t& ppsSize, char* &Iframe)
 {
 	typeFound = 0;
 	char* p1 = static_cast<char*>(input.data());
+	Iframe = p1;
 	size_t offset = 0;
 	typeFound = H264Utils::getNALUType(p1);
 	if (typeFound == H264Utils::H264_NAL_TYPE::H264_NAL_TYPE_IDR_SLICE)
 	{
-		return input;
+	return input;
 	}
 	if(typeFound == H264Utils::H264_NAL_TYPE::H264_NAL_TYPE_SEQ_PARAM)
 	{
@@ -45,21 +47,27 @@ const_buffer H264FrameUtils::parseNALUU(mutable_buffer& input, short& typeFound,
 			p1 = static_cast<char*>(input.data());
 			if (H264FrameUtils::getNALUnit(p1, input.size(), offset)) //where does it end
 			{
-				spsBuffer = p1;
+				char* spsBits = p1;
 				//we see 0 0 0 1 as well as 0 0 1
 				size_t nSize = offset - 3;
 				if (p1[offset - 4] == 0x00)
 					nSize--;
 				spsSize = nSize;
+				spsBuffer = (char*)malloc(spsSize);
+				memcpy(spsBuffer, spsBits, spsSize);
+				
+				auto frame = makeFrame(spsSize);
 				input += offset;
 				p1 = static_cast<char*>(input.data());
 				if (H264FrameUtils::getNALUnit(p1, input.size(), offset))
 				{
-					ppsBuffer = p1;
+					char* ppsBits = p1;
 					size_t nSize = offset - 3;
 					if (p1[offset - 4] == 0x00)
 						nSize--;
 					ppsSize = nSize;
+					ppsBuffer = (char*)malloc(spsSize);
+					memcpy(ppsBuffer, ppsBits, ppsSize);
 					//since we are here lets find the next type
 					typeFound = H264Utils::getNALUType(p1 + offset - 4); //always looks at 5th byte
 					input += offset - 4;

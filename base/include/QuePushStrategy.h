@@ -22,7 +22,7 @@ public:
 
 	void addQue(std::string dstModuleId, boost::shared_ptr<FrameContainerQueue>& que);
 
-	virtual void push(std::string dstModuleId, frame_container& frames);
+	virtual void push(std::string dstModuleId, frame_container& frames,bool priority);
 	virtual bool flush() { return true; }
 
 protected:

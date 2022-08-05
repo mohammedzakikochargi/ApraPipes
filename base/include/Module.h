@@ -130,7 +130,8 @@ public:
 	enum Kind {
 		SOURCE,
 		TRANSFORM,
-		SINK
+		SINK,
+		CONTROL
 	};
 	enum ModuleState {
 		Initialized,
@@ -185,6 +186,7 @@ protected:
 
 	ModuleProps getProps();
 	void setProps(ModuleProps& props);
+	void setControlModule(boost::shared_ptr<Module> mControl);
 	void fillProps(ModuleProps& props);
 	template<class T>
 	void addPropsToQueue(T& props)
@@ -259,7 +261,8 @@ protected:
 
 	void setMetadata(std::string& pinId, framemetadata_sp& metadata);
 		
-	virtual bool send(frame_container& frames, bool forceBlockingPush=false);
+	virtual bool send(frame_container& frames, bool forceBlockingPush=false,bool priority = false);
+	virtual bool sendCommand(bool priority,bool forceBlockingPush);
 	virtual void sendEOS();	
 	virtual void sendEoPFrame();
 	
@@ -320,7 +323,7 @@ protected:
 	virtual void notifyPlay(bool play) {}
 private:	
 	frame_sp makeFrame(size_t size, framefactory_sp& framefactory);
-	bool push(frame_container frameContainer); //exchanges the buffer 
+	bool push(frame_container frameContainer,bool priority = false); //exchanges the buffer 
 	bool try_push(frame_container frameContainer); //tries to exchange the buffer
 	
 	bool addEoPFrame(frame_container& frames);
@@ -379,6 +382,7 @@ private:
 	boost::shared_ptr<Profiler> mProfiler;
 	boost::shared_ptr<ModuleProps> mProps;
 	boost::shared_ptr<QuePushStrategy> mQuePushStrategy;
+	boost::shared_ptr<Module> mControl;
 
 	framemetadata_sp mCommandMetadata;
 	framemetadata_sp mPropsChangeMetadata;

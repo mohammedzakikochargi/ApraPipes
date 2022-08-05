@@ -7,7 +7,7 @@
 class FrameContainerQueue :public bounded_buffer<frame_container> {
 public:
 	FrameContainerQueue(size_t capacity);
-	virtual void push(frame_container item);
+	virtual void push(frame_container item, bool priority = false);
 	virtual void push_drop_oldest(frame_container item);
 	virtual frame_container pop();
 
@@ -29,13 +29,13 @@ public:
 	void adapt(boost::shared_ptr<FrameContainerQueue> adaptee) {
 		mAdaptee = adaptee;
 	}
-	void push(frame_container item) {
+	void push(frame_container item, bool priority = false) {
 		if (mAdaptee.get() != nullptr)
 		{
 			PushType p = should_push(item);
 			if (p == MUST_PUSH)
 			{
-				mAdaptee->push(item);
+				mAdaptee->push(item, priority);
 			}
 			else if (p == TRY_PUSH)
 			{
