@@ -45,7 +45,6 @@ public:
 	boost_deque<frame_sp> getFrames(frame_container& frames) { return Module::getFrames(frames); }
 
 	frame_sp makeFrame(size_t size, string pinId) { return Module::makeFrame(size, pinId); }
-	frame_sp makeFrame(size_t size) { return Module::makeFrame(size); }
 	
 	bool send(frame_container& frames) { return Module::send(frames); }
 

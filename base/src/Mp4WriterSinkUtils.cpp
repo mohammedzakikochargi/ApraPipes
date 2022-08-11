@@ -7,7 +7,7 @@
 
 Mp4WriterSinkUtils::Mp4WriterSinkUtils()
 {
-	lastVideoTS = std::time(nullptr);
+	lastVideoTS = 0;
 	lastSyncTS = std::time(nullptr);
 }
 
@@ -60,8 +60,8 @@ void Mp4WriterSinkUtils::parseTSJpeg(uint64_t &ts, uint32_t &chunkTimeInMinutes,
 
 	// used cached values if the difference in ts is less than chunkTime
 	uint32_t chunkTimeInSecs = 60 * chunkTimeInMinutes;
-	if ((t - lastVideoTS) < chunkTimeInSecs &&
-		(tm.tm_min - lastVideoMinute) < chunkTimeInMinutes)
+	if ((t - lastVideoTS) < chunkTimeInSecs)
+
 	{
 		relPath = lastVideoFolderPath;
 		mp4FileName = lastVideoName;
@@ -74,7 +74,7 @@ void Mp4WriterSinkUtils::parseTSJpeg(uint64_t &ts, uint32_t &chunkTimeInMinutes,
 	mp4FileName = std::to_string(ts) + ".mp4";
 
 	// cache new values
-	lastVideoTS = ts;
+	lastVideoTS = t;
 	lastVideoFolderPath = relPath;
 	lastVideoMinute = tm.tm_min;
 	lastVideoName = mp4FileName;
@@ -131,12 +131,10 @@ void Mp4WriterSinkUtils::parseTSH264(uint64_t& ts, uint32_t& chunkTimeInMinutes,
 	{
 		syncFlag = false;
 	}
-	// #CT
 	// used cached values if the difference in ts is less than chunkTime
 	uint32_t chunkTimeInSecs = 60 * chunkTimeInMinutes;
-	//float chunkTimeinMin = 0.95 * chunkTimeInMinutes;
-	if ((t - lastVideoTS) < chunkTimeInSecs &&
-		(tm.tm_min - lastVideoMinute) < chunkTimeInMinutes)
+
+	if ((t - lastVideoTS) < chunkTimeInSecs)
 	{
 		relPath = lastVideoFolderPath;
 		mp4FileName = lastVideoName;
@@ -149,15 +147,13 @@ void Mp4WriterSinkUtils::parseTSH264(uint64_t& ts, uint32_t& chunkTimeInMinutes,
 		mp4FileName = lastVideoName;
 		return;
 	}
-
-	// #CT
 	// get new video path
 	std::string yyyymmdd = std::to_string(1900 + tm.tm_year) + format_2(tm.tm_mon) + format_2(tm.tm_mday);
 	relPath = boost::filesystem::path(yyyymmdd) / format_hrs(tm.tm_hour);
 	mp4FileName = std::to_string(ts) + ".mp4";
 
 	// cache new values
-	lastVideoTS = ts;
+	lastVideoTS = t;
 	lastVideoFolderPath = relPath;
 	lastVideoMinute = tm.tm_min;
 	lastVideoName = mp4FileName;

@@ -21,8 +21,12 @@
 #include "H264EncoderNVCodec.h"
 #include "ResizeNPPI.h"
 #include "CudaCommon.h"
+#include "IFrameControlModule.h"
+#include "ControlModule.h"
 //#include "nvEncodeAPI.h"
 #include "../../thirdparty/Video_Codec_SDK_10.0.26/Interface/nvEncodeAPI.h"
+#include <ExternalSinkModule.h>
+#include <H264FrameUtils.h>
 
 BOOST_AUTO_TEST_SUITE(mp4WriterSink_tests)
 
@@ -77,7 +81,7 @@ void write_metadata(std::string inFolderPath, std::string outFolderPath, std::st
 	Logger::initLogger(loggerProps);
 
 	auto fileReaderProps = FileReaderModuleProps(inFolderPath, 0, -1, 4 * 1024 * 1024);
-	fileReaderProps.fps = 100;
+	fileReaderProps.fps = 24;
 	fileReaderProps.readLoop = true;
 
 	auto fileReader = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps));
@@ -86,7 +90,7 @@ void write_metadata(std::string inFolderPath, std::string outFolderPath, std::st
 
 
 	auto fileReaderProps2 = FileReaderModuleProps(metadataPath, 0, -1, 1 * 1024 * 1024);
-	fileReaderProps2.fps = 100;
+	fileReaderProps2.fps = 24;
 	fileReaderProps2.readLoop = true;
 	auto metadataReader = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps2));
 	auto mp4Metadata = framemetadata_sp(new Mp4VideoMetadata("v_1_0"));
@@ -117,7 +121,7 @@ void write_metadata(std::string inFolderPath, std::string outFolderPath, std::st
 	LOG_ERROR << "processing folder <" << inFolderPath << ">";
 	p->run_all_threaded();
 
-	boost::this_thread::sleep_for(boost::chrono::seconds(1800));
+	boost::this_thread::sleep_for(boost::chrono::seconds(10));
 
 	p->stop();
 	p->term();
@@ -154,7 +158,7 @@ BOOST_AUTO_TEST_CASE(jpg_mono_8_to_mp4v_metadata)
 
 	std::string inFolderPath = "./data/re3_filtered_mono";
 	std::string outFolderPath = "./data/testOutput/mp4_videos/mono_metadata_video/";
-	std::string metadataPath = "./data/mp4_videos/metadata/";
+	std::string metadataPath = "./data/metadata/";
 
 	write_metadata(inFolderPath, outFolderPath, metadataPath, width, height, 30);
 }
@@ -232,7 +236,7 @@ BOOST_AUTO_TEST_CASE(h264_to_mp4v)
 	int width = 640;
 	int height = 360;
 
-	std::string inFolderPath = "./data/h264/";
+	std::string inFolderPath = "./data/h264_data_car/";
 	std::string outFolderPath = "./data/testOutput/mp4_videos/rgb_24bpp/";
 
 	LoggerProps loggerProps;
@@ -241,14 +245,14 @@ BOOST_AUTO_TEST_CASE(h264_to_mp4v)
 	Logger::initLogger(loggerProps);
 
 	auto fileReaderProps = FileReaderModuleProps(inFolderPath, 0, -1, 4 * 1024 * 1024);
-	fileReaderProps.fps = 24;
-	fileReaderProps.readLoop = false;
+	fileReaderProps.fps = 100;
+	fileReaderProps.readLoop = true;
 
 	auto fileReader = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps));
 	auto h264ImageMetadata = framemetadata_sp(new H264Metadata(width, height));
 	fileReader->addOutputPin(h264ImageMetadata);
 
-	auto mp4WriterSinkProps = Mp4WriterSinkProps(10, 1, 24, outFolderPath);
+	auto mp4WriterSinkProps = Mp4WriterSinkProps(41, 1, 100, outFolderPath);
 	mp4WriterSinkProps.logHealth = true;
 	mp4WriterSinkProps.logHealthFrequency = 10;
 	auto mp4WriterSink = boost::shared_ptr<Module>(new Mp4WriterSink(mp4WriterSinkProps));
@@ -268,7 +272,7 @@ BOOST_AUTO_TEST_CASE(h264_to_mp4v)
 	LOG_ERROR << "processing folder <" << inFolderPath << ">";
 	p->run_all_threaded();
 
-	boost::this_thread::sleep_for(boost::chrono::seconds(600));
+	boost::this_thread::sleep_for(boost::chrono::seconds(2500));
 
 	p->stop();
 	p->term();
@@ -282,17 +286,17 @@ BOOST_AUTO_TEST_CASE(h264EncoderNV_to_h264writer)
 
 	auto width = 640;
 	auto height = 360;
-	uint32_t gopLength = 25;
-	uint32_t bitRateKbps = 7000;
+	uint32_t gopLength = 30;
+	uint32_t bitRateKbps = 17000;
 	uint32_t frameRate = 30;
-	GUID profile = NV_ENC_H264_PROFILE_MAIN_GUID;
+	GUID profile = NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
 	uint32_t enableBFrames = 1;
 
 	std::string inFolderPath = "./data/Raw_YUV420_640x360/????.raw";
 	std::string outFolderPath = "./data/testOutput/mp4_videos/rgb_24bpp/";
 
 	auto fileReaderProps = FileReaderModuleProps(inFolderPath, 0, -1, 4 * 1024 * 1024);
-	fileReaderProps.fps = 43;
+	fileReaderProps.fps = 24;
 	fileReaderProps.readLoop = false;
 	auto fileReader = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps));
 	auto metadata = framemetadata_sp(new RawImagePlanarMetadata(width, height, ImageMetadata::ImageType::YUV420, size_t(0), CV_8U));
@@ -341,4 +345,194 @@ BOOST_AUTO_TEST_CASE(h264EncoderNV_to_h264writer)
 
 }
 
+BOOST_AUTO_TEST_CASE(h264EncoderNV_to_h264writer_Chunktime)
+{
+	auto cuContext = apracucontext_sp(new ApraCUcontext());
+
+	auto width = 640;
+	auto height = 360;
+	uint32_t gopLength = 30;
+	uint32_t bitRateKbps = 17000;
+	uint32_t frameRate = 30;
+	GUID profile = NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
+	uint32_t enableBFrames = 1;
+
+	std::string inFolderPath = "./data/Raw_YUV420_640x360/????.raw";
+	std::string outFolderPath = "./data/testOutput/mp4_videos/rgb_24bpp/";
+
+	auto fileReaderProps = FileReaderModuleProps(inFolderPath, 0, -1, 4 * 1024 * 1024);
+	fileReaderProps.fps = 24;
+	fileReaderProps.readLoop = true;
+	auto fileReader = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps));
+	auto metadata = framemetadata_sp(new RawImagePlanarMetadata(width, height, ImageMetadata::ImageType::YUV420, size_t(0), CV_8U));
+
+	auto rawImagePin = fileReader->addOutputPin(metadata);
+
+	auto cudaStream_ = boost::shared_ptr<ApraCudaStream>(new ApraCudaStream());
+
+	auto copyProps = CudaMemCopyProps(cudaMemcpyKind::cudaMemcpyHostToDevice, cudaStream_);
+	copyProps.sync = true;
+	auto copy = boost::shared_ptr<Module>(new CudaMemCopy(copyProps));
+	fileReader->setNext(copy);
+	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(bitRateKbps, cuContext, gopLength, frameRate, profile, enableBFrames)));
+	copy->setNext(encoder);
+
+	LoggerProps loggerProps;
+	loggerProps.logLevel = boost::log::trivial::severity_level::info;
+	Logger::setLogLevel(boost::log::trivial::severity_level::info);
+	Logger::initLogger(loggerProps);
+
+	auto mp4WriterSinkProps = Mp4WriterSinkProps(1, 1, 40, outFolderPath);
+	mp4WriterSinkProps.logHealth = true;
+	mp4WriterSinkProps.logHealthFrequency = 10;
+	auto mp4WriterSinkP = boost::shared_ptr<Module>(new Mp4WriterSink(mp4WriterSinkProps));
+	encoder->setNext(mp4WriterSinkP);
+
+	boost::shared_ptr<PipeLine> p;
+	p = boost::shared_ptr<PipeLine>(new PipeLine("test"));
+	p->appendModule(fileReader);
+	if (!p->init())
+	{
+		throw AIPException(AIP_FATAL, "Engine Pipeline init failed. Check IPEngine Logs for more details.");
+	}
+	
+	LOG_ERROR << "processing folder <" << inFolderPath << ">";
+	p->run_all_threaded();
+
+	boost::this_thread::sleep_for(boost::chrono::seconds(180));
+
+	p->stop();
+	p->term();
+	p->wait_for_all();
+	p.reset();
+
+}
+BOOST_AUTO_TEST_CASE(h264_metadata)
+{
+	int width = 640;
+	int height = 360;
+
+	std::string inFolderPath = "./data/testOutput/h264images/";
+	std::string outFolderPath = "./data/testOutput/mp4_videos/rgb_24bpp/";
+	std::string metadataPath = "./data/metadata/";
+
+	LoggerProps loggerProps;
+	loggerProps.logLevel = boost::log::trivial::severity_level::info;
+	Logger::setLogLevel(boost::log::trivial::severity_level::info);
+	Logger::initLogger(loggerProps);
+
+	auto fileReaderProps = FileReaderModuleProps(inFolderPath, 0, -1, 4 * 1024 * 1024);
+	fileReaderProps.fps = 24;
+	fileReaderProps.readLoop = true;
+
+	auto fileReader = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps));
+	auto encodedImageMetadata = framemetadata_sp(new H264Metadata(width, height));
+	fileReader->addOutputPin(encodedImageMetadata);
+
+
+	auto fileReaderProps2 = FileReaderModuleProps(metadataPath, 0, -1, 1 * 1024 * 1024);
+	fileReaderProps2.fps = 24;
+	fileReaderProps2.readLoop = true;
+	auto metadataReader = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps2));
+	auto mp4Metadata = framemetadata_sp(new Mp4VideoMetadata("v_1_0"));
+	metadataReader->addOutputPin(mp4Metadata);
+
+	auto readerMuxer = boost::shared_ptr<Module>(new FramesMuxer());
+	fileReader->setNext(readerMuxer);
+	metadataReader->setNext(readerMuxer);
+
+	auto mp4WriterSinkProps = Mp4WriterSinkProps(1, 1, fileReaderProps.fps, outFolderPath);
+	mp4WriterSinkProps.logHealth = true;
+	mp4WriterSinkProps.logHealthFrequency = 100;
+	auto mp4WriterSink = boost::shared_ptr<Module>(new Mp4WriterSink(mp4WriterSinkProps));
+	readerMuxer->setNext(mp4WriterSink);
+
+	// #Dec_27_Review - do manual init, step and use saveorcompare
+
+	boost::shared_ptr<PipeLine> p;
+	p = boost::shared_ptr<PipeLine>(new PipeLine("test"));
+	p->appendModule(fileReader);
+	p->appendModule(metadataReader);
+
+	if (!p->init())
+	{
+		throw AIPException(AIP_FATAL, "Engine Pipeline init failed. Check IPEngine Logs for more details.");
+	}
+
+	LOG_ERROR << "processing folder <" << inFolderPath << ">";
+	p->run_all_threaded();
+
+	boost::this_thread::sleep_for(boost::chrono::seconds(10));
+
+	p->stop();
+	p->term();
+	p->wait_for_all();
+	p.reset();
+}
+BOOST_AUTO_TEST_CASE(parsenalu)
+{
+	int width = 640;
+	int height = 360;
+	
+	std::string inFolderPath = "./data/testOutput/h264images/";
+
+	auto fileReaderProps = FileReaderModuleProps(inFolderPath, 0, -1, 4 * 1024 * 1024);
+	fileReaderProps.fps = 24;
+	fileReaderProps.readLoop = false;
+
+	auto fileReader = boost::shared_ptr<Module>(new FileReaderModule(fileReaderProps));
+
+	auto h264ImageMetadata = framemetadata_sp(new H264Metadata(width, height));
+	fileReader->addOutputPin(h264ImageMetadata);
+	
+	auto sink = boost::shared_ptr<ExternalSinkModule>(new ExternalSinkModule());
+	fileReader->setNext(sink);
+
+	BOOST_TEST(fileReader->init());
+	BOOST_TEST(sink->init());
+
+	fileReader->play(true);
+
+	for (int f = 0; f < 31; f++)
+	{
+		fileReader->step();
+		auto frames = sink->pop();
+		auto frame = Module::getFrameByType(frames, FrameMetadata::FrameType::H264_DATA);
+		boost::asio::mutable_buffer frame1 = *(frame.get());
+		H264FrameUtils obj;
+		auto ret = obj.parseNalu(frame1);
+		const_buffer spsBuff, ppsBuff, inFrame;
+		short typeFound;
+		tie(typeFound, inFrame, spsBuff, ppsBuff) = ret;
+		auto spsBuffer = static_cast<const char*>(spsBuff.data());
+		auto ppsBuffer = static_cast<const char*>(ppsBuff.data());
+		
+		std::cout << "frame " << f << std::endl;
+		if(f==0)
+		{
+			BOOST_TEST(typeFound == 5);
+			BOOST_TEST(spsBuffer[0] == 0x67);
+			BOOST_TEST(ppsBuffer[0] == 0x68);
+			//here test for sps and pps using 67 and 68 and sizes
+		}
+		else if (f == 30)
+		{
+			BOOST_TEST(typeFound == 5);
+			BOOST_TEST(spsBuffer == nullptr);
+			BOOST_TEST(ppsBuffer == nullptr);
+			BOOST_TEST(spsBuff.size() == 0);
+			BOOST_TEST(ppsBuff.size() == 0);
+			//here test for missing sps and pps using NULL (data) 0 (size)
+		}
+		else {
+			BOOST_TEST(typeFound == 0);
+			BOOST_TEST(spsBuffer == nullptr);
+			BOOST_TEST(ppsBuffer == nullptr);
+			BOOST_TEST(spsBuff.size() == 0);
+			BOOST_TEST(ppsBuff.size() == 0);
+			//here test for missing sps and pps using NULL (data) 0 (size)
+		}
+	}
+	
+}
 BOOST_AUTO_TEST_SUITE_END()

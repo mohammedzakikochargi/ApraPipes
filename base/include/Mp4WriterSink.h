@@ -85,6 +85,6 @@ protected:
 	bool handlePropsChange(frame_sp &frame);
 	bool shouldTriggerSOS();
 	boost::shared_ptr<DetailAbs> mDetail;
-	Mp4WriterSinkProps mProps2;
+	Mp4WriterSinkProps mProp;
 
 };

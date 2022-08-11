@@ -7,8 +7,15 @@
 #include "PipeLine.h"
 #include "ExtFrame.h"
 #include "test_utils.h"
+#include "FileReaderModule.h"
+#include "ExternalSinkModule.h"
 
 #include <boost/test/unit_test.hpp>
+#include <ExternalSinkModule.h>
+#include <H264Metadata.h>
+#include "../src/Module.cpp"
+//#include "module_tests.cpp"
+#include "H264FrameUtils.h"
 
 // NOTE: TESTS WHICH REQUIRE ANY ENVIRONMENT TO BE PRESENT BEFORE RUNNING ARE NOT UNIT TESTS !!!
 
@@ -558,4 +565,17 @@ BOOST_AUTO_TEST_CASE(params_test, *boost::unit_test::disabled())
 	BOOST_TEST(Test_Utils::getArgValue("some_random_arg_name_not_passed_through_commandline", "hola") == "hola");
 }
 
+BOOST_AUTO_TEST_CASE(commandFrameSerialize)
+{
+		Command cmd(Command::CommandType::iFrame, true);
+		size_t cmdSize = cmd.getSerializeSize();
+		void* buffer = malloc(cmdSize);
+		
+		Command cmd2;
+		Utils::serialize(cmd, buffer, cmdSize);
+		Utils::deSerialize(cmd2, buffer, cmdSize);
+		free(buffer);
+		BOOST_TEST(sizeof(cmd2) == sizeof(cmd));
+		BOOST_TEST(cmd.getType() == cmd2.getType());
+}
 BOOST_AUTO_TEST_SUITE_END()

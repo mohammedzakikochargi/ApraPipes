@@ -35,8 +35,6 @@ public:
 	virtual ~H264EncoderNVCodec();
 	bool init();
 	bool term();
-	bool forceIFrame();
-	bool IFrame();
 	bool getSPSPPS(void*& buffer, size_t& size, int& width, int& height);
 
 protected:
@@ -46,7 +44,6 @@ protected:
 	bool validateOutputPins();
 	bool shouldTriggerSOS();
 	bool processEOS(string& pinId);
-	bool handleCommand(Command::CommandType type, frame_sp& fame);
 private:
 	class Detail;
 	boost::shared_ptr<Detail> mDetail;

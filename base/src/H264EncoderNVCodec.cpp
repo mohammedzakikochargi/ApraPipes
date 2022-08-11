@@ -62,11 +62,6 @@ public:
 		return helper->init(width, height, pitch, imageType, makeFrame, send);
 	}
 
-	bool forceIFrame()
-	{
-		helper->forceIFrame();
-		return true;
-	}
 	bool compute(frame_sp& frame)
 	{
 		return helper->process(frame);
@@ -97,11 +92,6 @@ H264EncoderNVCodec::H264EncoderNVCodec(H264EncoderNVCodecProps _props) : Module(
 
 H264EncoderNVCodec::~H264EncoderNVCodec() {}
 
-bool H264EncoderNVCodec::IFrame()
-{
-	mDetail->forceIFrame();
-	return true;
-}
 bool H264EncoderNVCodec::validateInputPins()
 {
 	if (getNumberOfInputPins() != 1)
@@ -217,23 +207,4 @@ bool H264EncoderNVCodec::processEOS(string& pinId)
 {
 	mShouldTriggerSOS = true;
 	return true;
-}
-
-bool H264EncoderNVCodec::handleCommand(Command::CommandType type, frame_sp& frame)
-{
-	if (type == Command::CommandType::iFrame)
-	{
-		return mDetail->forceIFrame();
-	}
-	else
-	{
-		return Module::handleCommand(type, frame);
-	}
-}
-
-bool H264EncoderNVCodec::forceIFrame()
-{
-	Command cmd;
-	cmd.iFrame;
-	return queueCommand(cmd);
 }
