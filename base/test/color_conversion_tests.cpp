@@ -131,4 +131,31 @@ BOOST_AUTO_TEST_CASE(rgb_bgr)
 
 }
 
+BOOST_AUTO_TEST_CASE(bayer_mono)
+{
+	auto fileReader = boost::shared_ptr<FileReaderModule>(new FileReaderModule(FileReaderModuleProps("./data/frame-4.raw")));
+	auto metadata = framemetadata_sp(new RawImageMetadata(800, 800, ImageMetadata::ImageType::BG10, CV_16UC1, 0 , CV_16U, FrameMetadata::HOST, true));
+	fileReader->addOutputPin(metadata);
+
+	auto colorchange = boost::shared_ptr<ColorConversion>(new ColorConversion(ColorConversionProps(ColorConversionProps::colorconversion::BAYERTOMONO)));
+	fileReader->setNext(colorchange);
+
+	auto sink = boost::shared_ptr<ExternalSinkModule>(new ExternalSinkModule());
+	colorchange->setNext(sink);
+
+	BOOST_TEST(fileReader->init());
+	BOOST_TEST(colorchange->init());
+	BOOST_TEST(sink->init());
+
+	fileReader->step();
+	colorchange->step();
+	auto frames = sink->pop();
+	BOOST_TEST(frames.size() == 1);
+	auto outputFrame = frames.cbegin()->second;
+	BOOST_TEST(outputFrame->getMetadata()->getFrameType() == FrameMetadata::RAW_IMAGE);
+
+	Test_Utils::saveOrCompare("./data/testOutput/frame_1280x720_bayer_cc_mono.raw", const_cast<const uint8_t*>(static_cast<uint8_t*>(outputFrame->data())), outputFrame->size(), 0);
+
+}
+
 BOOST_AUTO_TEST_SUITE_END()
