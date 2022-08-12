@@ -9,7 +9,6 @@
 #include "H264Utils.h"
 #include "Logger.h"
 
-using namespace std;
 // typefound, iFrame/PFrame, sps(optional),pps (optional)
 tuple<short, const_buffer, const_buffer, const_buffer> H264FrameUtils::parseNalu(mutable_buffer &input) // isFirstFrame
 {

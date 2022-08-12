@@ -586,13 +586,6 @@ bool H264EncoderNVCodecHelper::init(uint32_t width, uint32_t height, uint32_t pi
 	return mDetail->init(width, height, pitch, imageType, makeFrame, send);
 }
 
-bool H264EncoderNVCodecHelper::forceIFrame()
-{
-	NV_ENC_PIC_PARAMS param;
-	param.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
-	return true;
-}
-
 bool H264EncoderNVCodecHelper::process(frame_sp &frame)
 {
 	return mDetail->encode(frame);

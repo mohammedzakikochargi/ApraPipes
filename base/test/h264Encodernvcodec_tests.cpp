@@ -18,9 +18,8 @@
 #include "ExternalSinkModule.h"
 #include "StatSink.h"
 #include <thread>
-
-//#include "nvEncodeAPI.h"
 #include "CudaCommon.h"
+#include "../../thirdparty/Video_Codec_SDK_10.0.26/Interface/nvEncodeAPI.h"
 
 BOOST_AUTO_TEST_SUITE(h264encodernvcodec_tests)
 
@@ -34,6 +33,8 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360)
 	uint32_t gopLength = 25;
 	uint32_t bitRateKbps = 1000;
 	uint32_t frameRate = 30;
+	GUID profile = NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
+	uint32_t enableBFrames = 1;
 
 	auto fileReader = boost::shared_ptr<FileReaderModule>(new FileReaderModule(FileReaderModuleProps("./data/Raw_YUV420_640x360/????.raw")));
 	auto metadata = framemetadata_sp(new RawImagePlanarMetadata(width, height, ImageMetadata::ImageType::YUV420, size_t(0), CV_8U));
@@ -47,9 +48,7 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360)
 	copyProps.sync = true;
 	auto copy = boost::shared_ptr<Module>(new CudaMemCopy(copyProps));
 	fileReader->setNext(copy);
-	//H264EncoderNVCodecProps h264EncoderNVCodecProps(cuContext);
-	//h264EncoderNVCodecProps.targetKbps = 100;
-	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(cuContext)));
+	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(bitRateKbps, cuContext, gopLength, frameRate, profile, enableBFrames)));
 	copy->setNext(encoder);
 
 	auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/h264images/Raw_YUV420_640x360????.h264")));
@@ -68,19 +67,17 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360)
 		copy->step();
 		encoder->step();
 		fileWriter->step();
-		/*const uint8_t* pReadDataTest = nullptr;
-		unsigned int readDataSizeTest = 0U;
-		BOOST_TEST(Test_Utils::readFile("./data/testOutput/fileWriterModuleFrame_000" + to_string(i) + ".jpg", pReadDataTest, readDataSizeTest));*/
-	}
-
-	//Test_Utils::saveOrCompare("C:/Users/developer/ApraPipesfork/data/testOutput/h264images/Raw_YUV420_640x360_Image.h264" , 0);
-	
+	}	
 }
 
 BOOST_AUTO_TEST_CASE(yuv420_640x360_resize)
 {
 	auto cuContext = apracucontext_sp(new ApraCUcontext());
-	// metadata is known
+	uint32_t gopLength = 25;
+	uint32_t bitRateKbps = 1000;
+	uint32_t frameRate = 30;
+	GUID profile = NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
+	uint32_t enableBFrames = 1;
 	auto width = 640;
 	auto height = 360;
 
@@ -100,7 +97,7 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360_resize)
 	auto sync = boost::shared_ptr<Module>(new CudaStreamSynchronize(CudaStreamSynchronizeProps(cudaStream_)));
 	resize->setNext(sync);
 
-	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(cuContext)));
+	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(bitRateKbps, cuContext, gopLength, frameRate, profile, enableBFrames)));
 	sync->setNext(encoder);
 
 	auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/Raw_YUV420_640x360_to_40x22.h264", true)));
@@ -129,61 +126,14 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360_resize)
 	Test_Utils::saveOrCompare("./data/testOutput/Raw_YUV420_640x360_to_40x22.h264", 0);
 }
 
-BOOST_AUTO_TEST_CASE(yuv420_640x360_sps_pps)
-{
-	auto cuContext = apracucontext_sp(new ApraCUcontext());
-
-	// metadata is known
-	auto width = 640;
-	auto height = 360;
-
-	auto fileReader = boost::shared_ptr<FileReaderModule>(new FileReaderModule(FileReaderModuleProps("./data/Raw_YUV420_640x360/Image???_YUV420.raw")));
-	auto metadata = framemetadata_sp(new RawImagePlanarMetadata(width, height, ImageMetadata::ImageType::YUV420, size_t(0), CV_8U));
-
-	auto rawImagePin = fileReader->addOutputPin(metadata);
-
-	auto cudaStream_ = boost::shared_ptr<ApraCudaStream>(new ApraCudaStream());
-	auto copyProps = CudaMemCopyProps(cudaMemcpyHostToDevice, cudaStream_);
-	copyProps.sync = true;
-	auto copy = boost::shared_ptr<Module>(new CudaMemCopy(copyProps));
-	fileReader->setNext(copy);
-
-	auto encoder = boost::shared_ptr<H264EncoderNVCodec>(new H264EncoderNVCodec(H264EncoderNVCodecProps(cuContext)));
-	copy->setNext(encoder);
-
-	auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/h264images/Raw_YUV420_640x360_Temp????.h264", false)));
-	encoder->setNext(fileWriter);
-
-	BOOST_TEST(fileReader->init());
-	BOOST_TEST(copy->init());
-	BOOST_TEST(encoder->init());
-	BOOST_TEST(fileWriter->init());
-
-	fileReader->play(true);
-
-	fileReader->step();
-	copy->step();
-	encoder->step();
-	fileWriter->step();
-
-	void* spsppsBuffer = nullptr;
-	size_t spsppsBufferSize = 0;
-	width = 0;
-	height = 0;
-	BOOST_TEST(encoder->getSPSPPS(spsppsBuffer, spsppsBufferSize, width, height));
-	BOOST_TEST(width == 640);
-	BOOST_TEST(height == 360);
-
-	Test_Utils::saveOrCompare("./data/testOutput/h264images/Raw_YUV420_640x360_spspps.h264", (const uint8_t *)spsppsBuffer, spsppsBufferSize, 0);
-
-	Test_Utils::saveOrCompare("./data/testOutput/h264images/Raw_YUV420_640x360_Image.h264", 0);
-	
-}
-
 BOOST_AUTO_TEST_CASE(yuv420_640x360_sync)
 {
 	auto cuContext = apracucontext_sp(new ApraCUcontext());
-
+	uint32_t gopLength = 25;
+	uint32_t bitRateKbps = 1000;
+	uint32_t frameRate = 30;
+	GUID profile = NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
+	uint32_t enableBFrames = 1;
 	// metadata is known
 	auto width = 640;
 	auto height = 360;
@@ -200,7 +150,7 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360_sync)
 	auto sync = boost::shared_ptr<Module>(new CudaStreamSynchronize(CudaStreamSynchronizeProps(cudaStream_)));
 	copy->setNext(sync);
 
-	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(cuContext)));
+	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(bitRateKbps, cuContext, gopLength, frameRate, profile, enableBFrames)));
 	sync->setNext(encoder);
 
 	auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/Raw_YUV420_640x360.h264", true)));
@@ -231,7 +181,11 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360_sync)
 BOOST_AUTO_TEST_CASE(overlay_1920x960_BGRA)
 {
 	auto cuContext = apracucontext_sp(new ApraCUcontext());
-
+	uint32_t gopLength = 25;
+	uint32_t bitRateKbps = 1000;
+	uint32_t frameRate = 30;
+	GUID profile = NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
+	uint32_t enableBFrames = 1;
 	// metadata is known
 	auto width = 1920;
 	auto height = 960;
@@ -247,7 +201,7 @@ BOOST_AUTO_TEST_CASE(overlay_1920x960_BGRA)
 	auto copy = boost::shared_ptr<Module>(new CudaMemCopy(copyProps));
 	fileReader->setNext(copy);
 
-	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(cuContext)));
+	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(bitRateKbps, cuContext, gopLength, frameRate, profile, enableBFrames)));
 	copy->setNext(encoder);
 
 	auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/overlay_1920x960_BGRA.h264", true)));
@@ -276,7 +230,11 @@ BOOST_AUTO_TEST_CASE(overlay_1920x960_BGRA)
 BOOST_AUTO_TEST_CASE(mono_1920x960)
 {	
 	auto cuContext = apracucontext_sp(new ApraCUcontext());
-
+	uint32_t gopLength = 25;
+	uint32_t bitRateKbps = 1000;
+	uint32_t frameRate = 30;
+	GUID profile = NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
+	uint32_t enableBFrames = 1;
 	// metadata is known
 	auto width = 1920;
 	auto height = 960;
@@ -297,7 +255,7 @@ BOOST_AUTO_TEST_CASE(mono_1920x960)
 	auto sync = boost::shared_ptr<Module>(new CudaStreamSynchronize(CudaStreamSynchronizeProps(cudaStream_)));
 	cc->setNext(sync);
 
-	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(cuContext)));
+	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(bitRateKbps, cuContext, gopLength, frameRate, profile, enableBFrames)));
 	sync->setNext(encoder);
 
 	auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/mono_1920x960.h264", true)));
@@ -324,14 +282,16 @@ BOOST_AUTO_TEST_CASE(mono_1920x960)
 	}
 
 	Test_Utils::saveOrCompare("./data/testOutput/mono_1920x960.h264", 0);
-	
-	
 }
 
 void mono_1920x960_ext_sink_()
 {
 	auto cuContext = apracucontext_sp(new ApraCUcontext());
-
+	uint32_t gopLength = 25;
+	uint32_t bitRateKbps = 1000;
+	uint32_t frameRate = 30;
+	GUID profile = NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
+	uint32_t enableBFrames = 1;
 	// metadata is known
 	auto width = 1920;
 	auto height = 960;
@@ -352,7 +312,7 @@ void mono_1920x960_ext_sink_()
 	auto sync = boost::shared_ptr<Module>(new CudaStreamSynchronize(CudaStreamSynchronizeProps(cudaStream_)));
 	cc->setNext(sync);
 
-	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(cuContext)));
+	auto encoder = boost::shared_ptr<Module>(new H264EncoderNVCodec(H264EncoderNVCodecProps(bitRateKbps, cuContext, gopLength, frameRate, profile, enableBFrames)));
 	sync->setNext(encoder);
 
 	auto sink = boost::shared_ptr<ExternalSinkModule>(new ExternalSinkModule());
@@ -384,17 +344,10 @@ void mono_1920x960_ext_sink_()
 	
 }
 
-BOOST_AUTO_TEST_CASE(mono_1920x960_ext_sink)
-{
-	std::thread thread(mono_1920x960_ext_sink_);
-	thread.join();
-}
-
 BOOST_AUTO_TEST_CASE(yuv420_640x360_pipeline, *boost::unit_test::disabled())
 {
 	std::cout << "starting performance measurement" << std::endl;
 	auto cuContext = apracucontext_sp(new ApraCUcontext());
-
 	// metadata is known
 	auto width = 640;
 	auto height = 360;
@@ -439,11 +392,9 @@ BOOST_AUTO_TEST_CASE(yuv420_640x360_pipeline, *boost::unit_test::disabled())
 BOOST_AUTO_TEST_CASE(mono_1920x960_pipeline, *boost::unit_test::disabled())
 {
 	auto cuContext = apracucontext_sp(new ApraCUcontext());
-
-	// metadata is known
 	auto width = 1920;
 	auto height = 960;
-
+	
 	auto fileReaderProps = FileReaderModuleProps("./data/mono_1920x960.raw");
 	fileReaderProps.fps = 10000;
 	auto fileReader = boost::shared_ptr<FileReaderModule>(new FileReaderModule(fileReaderProps));

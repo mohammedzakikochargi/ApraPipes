@@ -35,11 +35,13 @@ public:
 	~DetailAbs()
 	{
 	};
+	virtual bool set_video_decoder_config(mp4_video_codec codec) = 0;
+	virtual bool write(frame_container& frames) = 0;
 
 	void setImageMetadata(framemetadata_sp& metadata)
 	{
 		mInputMetadata = metadata;
-		auto mFrameType = mInputMetadata->getFrameType();
+		mFrameType = mInputMetadata->getFrameType();
 		if (mFrameType == FrameMetadata::FrameType::ENCODED_IMAGE)
 		{
 			auto encodedImageMetadata = FrameMetadataFactory::downcast<EncodedImageMetadata>(metadata);
@@ -61,8 +63,89 @@ public:
 		return mMetadataEnabled;
 	}
 
-	virtual void initNewMp4File(std::string& filename) = 0;
-	virtual bool write(frame_container& frames) = 0;
+	void initNewMp4File(std::string& filename)
+	{
+		if (mux)
+		{
+			mp4_mux_close(mux);
+		}
+		syncFlag = false;
+		lastFrameTS = 0;
+
+		uint32_t timescale = 30000;
+		now = std::time(nullptr);
+
+		auto ret = mp4_mux_open(filename.c_str(), timescale, now, now, &mux);
+		if (mMetadataEnabled)
+		{
+			/* \251too -> �too */
+			std::string key = "\251too";
+			std::string val = mSerFormatVersion.c_str();
+			mp4_mux_add_file_metadata(mux, key.c_str(), val.c_str());
+		}
+		// track parameters
+		params.type = MP4_TRACK_TYPE_VIDEO;
+		params.name = "VideoHandler";
+		params.enabled = 1;
+		params.in_movie = 1;
+		params.in_preview = 0;
+		params.timescale = timescale;
+		params.creation_time = now;
+		params.modification_time = now;
+
+		// add video track
+		videotrack = mp4_mux_add_track(mux, &params);
+
+		// sets vdc - replace this with strategy based impl
+		if (mFrameType == FrameMetadata::FrameType::H264_DATA)
+		{
+			set_video_decoder_config(MP4_VIDEO_CODEC_AVC);
+		}
+		else if (mFrameType == FrameMetadata::FrameType::ENCODED_IMAGE)
+		{
+			set_video_decoder_config(MP4_VIDEO_CODEC_MP4V);
+		}
+
+		mp4_mux_track_set_video_decoder_config(mux, videotrack, &vdc);
+
+		// METADATA stuff
+		if (mMetadataEnabled)
+		{
+			metatrack_params = params;
+			metatrack_params.type = MP4_TRACK_TYPE_METADATA;
+			metatrack_params.name = "APRA_METADATA";
+			metatrack = mp4_mux_add_track(mux, &metatrack_params);
+
+			if (metatrack < 0)
+			{
+				LOG_ERROR << "Failed to add metadata track";
+				// #Dec_24_Review - should we throw exception here ? This means that user sends metadata to this module but we don't write ?
+			}
+
+			// https://www.rfc-editor.org/rfc/rfc4337.txt
+			std::string content_encoding = "base64";
+			std::string mime_format = "video/mp4";
+
+			// #Dec_24_Review - use return code from the below function call 
+			mp4_mux_track_set_metadata_mime_type(
+				mux,
+				metatrack,
+				content_encoding.c_str(),
+				mime_format.c_str());
+
+			/* Add track reference */
+			if (metatrack > 0)
+			{
+				LOG_INFO << "metatrack <" << metatrack << "> videotrack <" << videotrack << ">";
+				ret = mp4_mux_add_ref_to_track(mux, metatrack, videotrack);
+				if (ret != 0)
+				{
+					LOG_ERROR << "Failed to add metadata track as reference";
+					// #Dec_24_Review - should we throw exception here ? This means that user sends metadata to this module but we don't write ?
+				}
+			}
+		}
+	}
 
 	bool attemptFileClose()
 	{
@@ -82,7 +165,6 @@ public:
 	bool mMetadataEnabled = false;
 	bool isKeyFrame;
 protected:
-	// #Dec_24_Review - good practice to initialize all the variables here to default values - uninitialized values can cause unexpected errors
 	int videotrack;
 	int metatrack;
 	int audiotrack;
@@ -96,6 +178,7 @@ protected:
 
 	int mHeight;
 	int mWidth;
+	short mFrameType;
 	bool syncFlag = false;
 	Mp4WriterSinkUtils mWriterSinkUtils;
 	std::string mNextFrameFileName;
@@ -108,7 +191,6 @@ class DetailJpeg : public DetailAbs
 {
 public:
 	DetailJpeg(Mp4WriterSinkProps& _props) : DetailAbs(_props) {}
-	void initNewMp4File(std::string& filename);
 	bool set_video_decoder_config(mp4_video_codec codec)
 	{
 		vdc.width = mWidth;
@@ -130,13 +212,11 @@ public:
 	const_buffer inFrame;
 	short typeFound;
 
-	DetailH264(Mp4WriterSinkProps& _props, std::function<bool(bool priority, bool forceBlockingPush)> _sendCommand) : DetailAbs(_props)
+	DetailH264(Mp4WriterSinkProps& _props) : DetailAbs(_props)
 	{
-		sendCommand = _sendCommand;
 	}
 
 	bool write(frame_container& frames);
-	void initNewMp4File(std::string& filename);
 
 	bool set_video_decoder_config(mp4_video_codec codec)
 	{
@@ -149,23 +229,22 @@ public:
 		vdc.avc.sps_size = spsBuffer.size();
 		return true;
 	}
-public:
-	std::function<bool(bool priority, bool forceBlockingPush)> sendCommand;
 private:
-	boost::shared_ptr<H264EncoderNVCodec> mDetail;
+	H264FrameUtils H264FrameObj;
 };
 
 bool DetailJpeg::write(frame_container& frames)
 {
-	auto inJpegImageFrame = Module::getFrameByType(frames, FrameMetadata::FrameType::H264_DATA);
+	auto inJpegImageFrame = Module::getFrameByType(frames, FrameMetadata::FrameType::ENCODED_IMAGE);
 	auto inMp4MetaFrame = Module::getFrameByType(frames, FrameMetadata::FrameType::MP4_VIDEO_METADATA);
 	if (!inJpegImageFrame)
 	{
 		LOG_ERROR << "Image Frame is empty. Unable to write.";
 		return true;
 	}
-	std::string _nextFrameFileName = mWriterSinkUtils.getFilenameForNextFrameJpeg(inJpegImageFrame->timestamp, mProps->baseFolder,
-		mProps->chunkTime, mProps->syncTime, syncFlag);
+	short naluType = 0;
+	std::string _nextFrameFileName = mWriterSinkUtils.getFilenameForNextFrame(inJpegImageFrame->timestamp, mProps->baseFolder,
+		mProps->chunkTime, mProps->syncTime, syncFlag ,mFrameType, naluType);
 
 	if (_nextFrameFileName == "")
 	{
@@ -194,7 +273,6 @@ bool DetailJpeg::write(frame_container& frames)
 		diffInMsecs = 0;
 		mux_sample.dts = 0;
 	}
-
 	else
 	{
 		diffInMsecs = inJpegImageFrame->timestamp - lastFrameTS;
@@ -203,7 +281,6 @@ bool DetailJpeg::write(frame_container& frames)
 		{
 			inJpegImageFrame->timestamp += halfDurationInMsecs;
 		}
-
 		else if (diffInMsecs < 0)
 		{
 			inJpegImageFrame->timestamp = lastFrameTS + halfDurationInMsecs;
@@ -217,89 +294,11 @@ bool DetailJpeg::write(frame_container& frames)
 
 	if (metatrack != -1 && mMetadataEnabled && inMp4MetaFrame.get())
 	{
-
 		mux_sample.buffer = static_cast<uint8_t*>(inMp4MetaFrame->data());
 		mux_sample.len = inMp4MetaFrame->size();
 		mp4_mux_track_add_sample(mux, metatrack, &mux_sample);
 	}
 	return true;
-}
-
-void DetailJpeg::initNewMp4File(std::string& filename)
-{
-	if (mux)
-	{
-		mp4_mux_close(mux);
-	}
-	syncFlag = false;
-	lastFrameTS = 0;
-
-	uint32_t timescale = 30000;
-	now = std::time(nullptr);
-
-	auto ret = mp4_mux_open(filename.c_str(), timescale, now, now, &mux);
-	if (mMetadataEnabled)
-	{
-		/* \251too -> �too */
-		std::string key = "\251too";
-		std::string val = mSerFormatVersion.c_str();
-		mp4_mux_add_file_metadata(mux, key.c_str(), val.c_str());
-	}
-
-	// track parameters
-	params.type = MP4_TRACK_TYPE_VIDEO;
-	params.name = "VideoHandler";
-	params.enabled = 1;
-	params.in_movie = 1;
-	params.in_preview = 0;
-	params.timescale = timescale;
-	params.creation_time = now;
-	params.modification_time = now;
-	// add video track
-	videotrack = mp4_mux_add_track(mux, &params);
-
-	// sets vdc - replace this with strategy based impl
-	set_video_decoder_config(MP4_VIDEO_CODEC_MP4V);//jpg_rgb_24_to_mp4v
-
-	mp4_mux_track_set_video_decoder_config(mux, videotrack, &vdc);
-
-	// METADATA stuff
-	if (mMetadataEnabled)
-	{
-		metatrack_params = params;
-		metatrack_params.type = MP4_TRACK_TYPE_METADATA;
-		metatrack_params.name = "APRA_METADATA";
-		metatrack = mp4_mux_add_track(mux, &metatrack_params);
-
-		if (metatrack < 0)
-		{
-			LOG_ERROR << "Failed to add metadata track";
-			// #Dec_24_Review - should we throw exception here ? This means that user sends metadata to this module but we don't write ?
-		}
-
-		// https://www.rfc-editor.org/rfc/rfc4337.txt
-		std::string content_encoding = "base64";
-		std::string mime_format = "video/mp4";
-
-		// #Dec_24_Review - use return code from the below function call 
-		mp4_mux_track_set_metadata_mime_type(
-			mux,
-			metatrack,
-			content_encoding.c_str(),
-			mime_format.c_str());
-
-		/* Add track reference */
-		if (metatrack > 0)
-		{
-			LOG_INFO << "metatrack <" << metatrack << "> videotrack <" << videotrack << ">";
-			ret = mp4_mux_add_ref_to_track(mux, metatrack, videotrack);
-			if (ret != 0)
-			{
-				LOG_ERROR << "Failed to add metadata track as reference";
-				// #Dec_24_Review - should we throw exception here ? This means that user sends metadata to this module but we don't write ?
-			}
-		}
-	}
 }
 
 bool DetailH264::write(frame_container& frames)
@@ -313,7 +312,6 @@ bool DetailH264::write(frame_container& frames)
 	}
 
 	mutable_buffer& frame = *(inH264ImageFrame.get());
-	H264FrameUtils H264FrameObj;
 	auto ret = H264FrameObj.parseNalu(frame);
 	tie(typeFound, inFrame, spsBuff, ppsBuff) = ret;
 
@@ -324,8 +322,8 @@ bool DetailH264::write(frame_container& frames)
 		ppsBuffer = ppsBuff;
 	}
 
-	std::string _nextFrameFileName = mWriterSinkUtils.getFilenameForNextFrameH264(inH264ImageFrame->timestamp, mProps->baseFolder,
-		mProps->chunkTime, mProps->syncTime, syncFlag, typeFound);
+	std::string _nextFrameFileName = mWriterSinkUtils.getFilenameForNextFrame(inH264ImageFrame->timestamp, mProps->baseFolder,
+		mProps->chunkTime, mProps->syncTime, syncFlag,mFrameType, typeFound);
 
 	if (_nextFrameFileName == "")
 	{
@@ -349,7 +347,6 @@ bool DetailH264::write(frame_container& frames)
 	{
 		isKeyFrame = true;
 	}
-
 	else
 	{
 		isKeyFrame = false;
@@ -393,83 +390,6 @@ bool DetailH264::write(frame_container& frames)
 	return true;
 }
 
-void DetailH264::initNewMp4File(std::string& filename)
-{
-	if (mux)
-	{
-		mp4_mux_close(mux);
-	}
-	syncFlag = false;
-	lastFrameTS = 0;
-
-	uint32_t timescale = 30000;
-	now = std::time(nullptr);
-
-	auto ret = mp4_mux_open(filename.c_str(), timescale, now, now, &mux);
-	if (mMetadataEnabled)
-	{
-		/* \251too -> �too */
-		std::string key = "\251too";
-		std::string val = mSerFormatVersion.c_str();
-		mp4_mux_add_file_metadata(mux, key.c_str(), val.c_str());
-	}
-	// track parameters
-	params.type = MP4_TRACK_TYPE_VIDEO;
-	params.name = "VideoHandler";
-	params.enabled = 1;
-	params.in_movie = 1;
-	params.in_preview = 0;
-	params.timescale = timescale;
-	params.creation_time = now;
-	params.modification_time = now;
-
-	// add video track
-	videotrack = mp4_mux_add_track(mux, &params);
-
-	// sets vdc - replace this with strategy based impl
-	set_video_decoder_config(MP4_VIDEO_CODEC_AVC);
-
-	mp4_mux_track_set_video_decoder_config(mux, videotrack, &vdc);
-
-	// METADATA stuff
-	if (mMetadataEnabled)
-	{
-		metatrack_params = params;
-		metatrack_params.type = MP4_TRACK_TYPE_METADATA;
-		metatrack_params.name = "APRA_METADATA";
-		metatrack = mp4_mux_add_track(mux, &metatrack_params);
-
-		if (metatrack < 0)
-		{
-			LOG_ERROR << "Failed to add metadata track";
-			// #Dec_24_Review - should we throw exception here ? This means that user sends metadata to this module but we don't write ?
-		}
-
-		// https://www.rfc-editor.org/rfc/rfc4337.txt
-		std::string content_encoding = "base64";
-		std::string mime_format = "video/mp4";
-
-		// #Dec_24_Review - use return code from the below function call 
-		mp4_mux_track_set_metadata_mime_type(
-			mux,
-			metatrack,
-			content_encoding.c_str(),
-			mime_format.c_str());
-
-		/* Add track reference */
-		if (metatrack > 0)
-		{
-			LOG_INFO << "metatrack <" << metatrack << "> videotrack <" << videotrack << ">";
-			ret = mp4_mux_add_ref_to_track(mux, metatrack, videotrack);
-			if (ret != 0)
-			{
-				LOG_ERROR << "Failed to add metadata track as reference";
-				// #Dec_24_Review - should we throw exception here ? This means that user sends metadata to this module but we don't write ?
-			}
-		}
-	}
-}
-
 Mp4WriterSink::Mp4WriterSink(Mp4WriterSinkProps _props)
 	: Module(SINK, "Mp4WriterSink", _props), mProp(_props)
 {
@@ -496,9 +416,7 @@ bool Mp4WriterSink::init()
 
 		else if (mFrameType == FrameMetadata::FrameType::H264_DATA)
 		{
-			mDetail.reset(new DetailH264(mProp,
-				[&](bool priority, bool forceBlockingPush)
-				{ return sendCommand(priority, forceBlockingPush); }));
+			mDetail.reset(new DetailH264(mProp));
 		}
 	}
 	return Module::init();
@@ -590,7 +508,6 @@ bool Mp4WriterSink::process(frame_container& frames)
 		if (!mDetail->write(frames))
 		{
 			LOG_FATAL << "Error occured while writing mp4 file<>";
-			// #Dec_24_Review - return false may do some bad things - it calls onStepFail - do you want to throw exception instead ?
 			return true;
 		}
 	}

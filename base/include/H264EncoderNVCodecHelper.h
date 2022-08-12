@@ -15,7 +15,6 @@ public:
 
     bool process(frame_sp &frame);
     void endEncode();
-    bool forceIFrame();
     bool getSPSPPS(void*& buffer, size_t& size, int& width, int& height);
 
 private:
