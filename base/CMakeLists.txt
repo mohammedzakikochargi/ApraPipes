@@ -187,6 +187,8 @@ SET(CORE_FILES
 	src/QRReader.cpp
 	src/Mp4WriterSink.cpp
 	src/Mp4WriterSinkUtils.cpp
+	src/IframeControlModule.cpp
+	src/ControlModule.cpp
 )
 
 SET(CORE_FILES_H
@@ -234,6 +236,8 @@ SET(CORE_FILES_H
 	include/Mp4WriterSinkUtils.h
 	include/EncodedImageMetadata.h
 	include/PropsChangeMetadata.h
+	include/IframeControlModule.h
+	include/ControlModule.h
 )
 
 IF(ENABLE_WINDOWS)
@@ -282,7 +286,6 @@ SET(IP_FILES
 	src/WebCamSource.cpp
 	src/FaceDetectorXform.cpp
 	src/TextOverlayXForm.cpp
-
 )
 
 
@@ -573,6 +576,7 @@ SET(UT_FILES
 	test/QRReader_tests.cpp
 	test/textoverlayxform_tests.cpp
 	test/mp4writersink_tests.cpp
+	test/mp4_file_tests.cpp
 	${ARM64_UT_FILES}
 	${CUDA_UT_FILES}
 )
