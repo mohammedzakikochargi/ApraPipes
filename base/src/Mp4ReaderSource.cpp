@@ -4,25 +4,34 @@
 #include "Mp4ReaderSourceUtils.h"
 #include "PropsChangeMetadata.h"
 #include "EncodedImageMetadata.h"
+#include "H264Metadata.h"
 #include "libmp4.h"
 #include "Frame.h"
 #include "Command.h"
 #include "libmp4.h"
+#include "Module.h"
 
-class Mp4ReaderSource::Detail
+class Detail
 {
 public:
-	Detail(Mp4ReaderSourceProps &props, std::function<frame_sp(size_t size)> _makeFrame , std::function<void(framemetadata_sp metadata)> _setMetadata)
+	Detail(Mp4ReaderSourceProps &props, std::function<frame_sp(size_t size, string& pinId)> _makeFrame ,std::function<framemetadata_sp(int type)> _getOutputMetadataByType,std::function<string(int type)> _getOutputPinIdByType,
+		std::function<frame_sp(frame_sp& bigFrame, size_t& size, string& pinId)> _makeframe,std::function<string(framemetadata_sp& _metadata)> _addOutputPin)
 	{
 		setProps(props);
 		makeFrame = _makeFrame;
-		setMetadata = _setMetadata;
+		makeframe = _makeframe;
+		addOutputPin = _addOutputPin;
+		getOutputMetadataByType = _getOutputMetadataByType;
+		getOutputPinIdByType = _getOutputPinIdByType;
 		mFSParser = boost::shared_ptr<FileStructureParser>(new FileStructureParser());
 	}
 
 	~Detail()
 	{
 	}
+	virtual void setMetadata() = 0;
+	virtual bool produceFrames(frame_container frames) = 0;
+	virtual string addOutPutPin(framemetadata_sp & metadata) = 0;
 
 	void setProps(Mp4ReaderSourceProps &props)
 	{
@@ -65,6 +74,7 @@ public:
 	/* initNewVideo responsible for setting demux-ing files in correct order
 	   Opens the mp4 file at mVideoCounter index in mParsedVideoFiles
 	   If mParsedVideoFiles are exhausted - it performs a fresh fs parse for mp4 files */
+	
 	bool initNewVideo()
 	{
 		/*  parseFS() is called:
@@ -153,8 +163,8 @@ public:
 			throw AIPException(AIP_FATAL, "No video track found");
 		}
 
-		auto tempEncodedImgMetadata = framemetadata_sp(new EncodedImageMetadata(width, height));
-		setMetadata(tempEncodedImgMetadata);
+		//auto tempEncodedImgMetadata = framemetadata_sp(new EncodedImageMetadata(width, height));
+		setMetadata();
 		return true;
 	}
 
@@ -271,13 +281,11 @@ public:
 				imageFrameSize = 0;
 				return;
 			}
-
 			++mState.mFrameCounter;
-
 		}
 		return;
 	}
-
+	
 
 	Mp4ReaderSourceProps mProps;
 private:
@@ -311,43 +319,148 @@ private:
 public:
 	int width = 0;
 	int height = 0;
-	uint8_t* sample_buffer;
-	uint32_t sample_buffer_size = 0;
-	uint8_t* metadata_buffer;
-	uint32_t  metadata_buffer_size = 0;
 	int ret;
-
-	std::function<void(framemetadata_sp metadata)> setMetadata;
-	std::function<frame_sp(size_t size)> makeFrame;
+	std::function<framemetadata_sp(int type)> getOutputMetadataByType;
+	std::function<string(int type)> getOutputPinIdByType;
+	std::function<frame_sp(size_t size, string& pinId)> makeFrame;
+	std::function<frame_sp(frame_sp& bigFrame, size_t& size, string& pinId)> makeframe;
+	std::function<string(framemetadata_sp& _metadata)> addOutputPin;
 	boost::shared_ptr<FileStructureParser> mFSParser;
+	std::string encodedImagePinId;
+	std::string h264ImagePinId;
+	std::string mp4FramePinId;
 };
 
-Mp4ReaderSource::Mp4ReaderSource(Mp4ReaderSourceProps _props)
-	: Module(SOURCE, "Mp4ReaderSource", _props)
+class DetailJpeg : public Detail
 {
-	mDetail.reset(new Detail(
-		_props,
-		[&](size_t size)
-		{ return makeFrame(size); },
-		[&](framemetadata_sp metadata)
-		{ return setMetadata(metadata); }));
+public:
+	DetailJpeg(Mp4ReaderSourceProps& props, std::function<frame_sp(size_t size, std::string &pinId)> _makeFrame, std::function<framemetadata_sp(int type)> _getOutputMetadataByType,std::function<string(int type)> _getOutputPinIdByType, std::function<frame_sp(frame_sp& bigFrame, size_t& size, string& pinId)> _makeframe, 
+		std::function<string(framemetadata_sp& _metadata)> addOutputPin) : Detail(props,_makeFrame, _getOutputMetadataByType,_getOutputPinIdByType,_makeframe,addOutputPin)
+	{}
+	void setMetadata();
+	bool produceFrames(frame_container frames);
+	string addOutPutPin(framemetadata_sp& metadata);
+};
+
+class DetailH264 : public Detail
+{
+public:
+	DetailH264(Mp4ReaderSourceProps& props, std::function<frame_sp(size_t size, string& pinId)> _makeFrame, std::function<framemetadata_sp(int type)> _getOutputMetadataByType, std::function<string(int type)> _getOutputPinIdByType,std::function<frame_sp(frame_sp& bigFrame, size_t& size, string& pinId)> _makeframe
+	, std::function<string(framemetadata_sp& _metadata)> _addOutputPin) : Detail(props, _makeFrame, _getOutputMetadataByType, _getOutputPinIdByType,_makeframe,addOutputPin)
+	{}
+	void setMetadata();
+	bool produceFrames(frame_container frames);
+	string addOutPutPin(framemetadata_sp& metadata);
+};
+
+string DetailJpeg::addOutPutPin(framemetadata_sp& metadata)
+{
+	return 0 ;// encodedImagePinId = addOutputPin(metadata);
 }
 
-Mp4ReaderSource::~Mp4ReaderSource() {}
-
-void Mp4ReaderSource::setMetadata(framemetadata_sp metadata)
+void DetailJpeg::setMetadata()
 {
+	auto metadata = framemetadata_sp(new EncodedImageMetadata(width, height));
 	if (!metadata->isSet())
 	{
 		return;
 	}
 	auto encodedMetadata = FrameMetadataFactory::downcast<EncodedImageMetadata>(metadata);
-	auto outMetadata = Module::getOutputMetadataByType(FrameMetadata::FrameType::ENCODED_IMAGE);
+	auto outMetadata = getOutputMetadataByType(FrameMetadata::FrameType::ENCODED_IMAGE);
 	auto outEncodedMetadata = FrameMetadataFactory::downcast<EncodedImageMetadata>(outMetadata);
 
 	outEncodedMetadata->setData(encodedMetadata);
+
+	auto mp4FrameMetadata = getOutputMetadataByType(FrameMetadata::FrameType::MP4_VIDEO_METADATA);
+	//// set proto version in mp4videometadata
+	auto serFormatVersion = getSerFormatVersion();
+	auto mp4VideoMetadata = FrameMetadataFactory::downcast<Mp4VideoMetadata>(mp4FrameMetadata);
+	mp4VideoMetadata->setData(serFormatVersion);
 	return;
 }
+
+bool DetailJpeg::produceFrames(frame_container frames)
+{
+	frame_sp imgFrame = makeFrame(mProps.biggerFrameSize, getOutputPinIdByType(FrameMetadata::ENCODED_IMAGE));
+	frame_sp metadataFrame = makeFrame(mProps.biggerMetadataFrameSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
+	uint8_t* sampleFrame = reinterpret_cast<uint8_t*>(imgFrame->data());
+	uint8_t* sampleMetadataFrame = reinterpret_cast<uint8_t*>(metadataFrame->data());
+	size_t imageActualSize;
+	size_t metadataActualSize;
+	readNextFrame(sampleFrame, sampleMetadataFrame, imageActualSize, metadataActualSize);
+
+	if (!imageActualSize || !sampleFrame)
+	{
+		return true;
+	}
+
+	auto trimmedImgFrame = makeframe(imgFrame, imageActualSize, encodedImagePinId);
+	frames.insert(make_pair(encodedImagePinId, trimmedImgFrame));
+	if (metadataActualSize)
+	{
+		auto metadataSizeFrame = makeframe(metadataFrame, metadataActualSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
+
+		frames.insert(make_pair(mp4FramePinId, metadataSizeFrame));
+	}
+}
+
+string DetailH264::addOutPutPin(framemetadata_sp& metadata)
+{
+	return 0; //h264IamgePinId = addOutputPin(metadata);
+}
+
+void DetailH264::setMetadata()
+{
+	auto metadata = framemetadata_sp(new H264Metadata(width, height));
+	if (!metadata->isSet())
+	{
+		return;
+	}
+	auto h264Metadata = FrameMetadataFactory::downcast<H264Metadata>(metadata);
+	auto outMetadata = getOutputMetadataByType(FrameMetadata::FrameType::H264_DATA);
+	auto outH264Metadata = FrameMetadataFactory::downcast<H264Metadata>(outMetadata);
+
+	outH264Metadata->setData(*h264Metadata);
+
+	auto mp4FrameMetadata = getOutputMetadataByType(FrameMetadata::FrameType::MP4_VIDEO_METADATA);
+	//// set proto version in mp4videometadata
+	auto serFormatVersion = getSerFormatVersion();
+	auto mp4VideoMetadata = FrameMetadataFactory::downcast<Mp4VideoMetadata>(mp4FrameMetadata);
+	mp4VideoMetadata->setData(serFormatVersion);
+	return;
+}
+
+bool DetailH264::produceFrames(frame_container frames)
+{
+	frame_sp imgFrame = makeFrame(mProps.biggerFrameSize, getOutputPinIdByType(FrameMetadata::H264_DATA));
+	frame_sp metadataFrame = makeFrame(mProps.biggerMetadataFrameSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
+	uint8_t* sampleFrame = reinterpret_cast<uint8_t*>(imgFrame->data());
+	uint8_t* sampleMetadataFrame = reinterpret_cast<uint8_t*>(metadataFrame->data());
+	size_t imageActualSize;
+	size_t metadataActualSize;
+	readNextFrame(sampleFrame, sampleMetadataFrame, imageActualSize, metadataActualSize);
+
+	if (!imageActualSize || !sampleFrame)
+	{
+		return true;
+	}
+
+	auto trimmedImgFrame = makeframe(imgFrame, imageActualSize, h264ImagePinId);
+	frames.insert(make_pair(h264ImagePinId, trimmedImgFrame));
+	if (metadataActualSize)
+	{
+		auto metadataSizeFrame = makeframe(metadataFrame, metadataActualSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
+
+		frames.insert(make_pair(mp4FramePinId, metadataSizeFrame));
+	}
+}
+
+Mp4ReaderSource::Mp4ReaderSource(Mp4ReaderSourceProps _props)
+	: Module(SOURCE, "Mp4ReaderSource", _props) , props(_props)
+{
+}
+
+Mp4ReaderSource::~Mp4ReaderSource() {}
 
 bool Mp4ReaderSource::init()
 {
@@ -355,16 +468,39 @@ bool Mp4ReaderSource::init()
 	{
 		return false;
 	}
-
+	auto inputPinIdMetadataMap = getFirstOutputMetadata();
+	auto  mFrameType = inputPinIdMetadataMap->getFrameType();
+	if (mFrameType == FrameMetadata::FrameType::ENCODED_IMAGE)
+	{
+		mDetail.reset(new DetailJpeg(
+			props,
+			[&](size_t size, string& pinId)
+			{ return makeFrame(size,pinId); },
+			[&](int type)
+			{ return getOutputMetadataByType(type); },
+			[&](int type)
+			{ return getOutputPinIdByType(type); },
+			[&](frame_sp& frame, size_t& size, string& pinId)
+			{ return makeFrame(frame, size, pinId); },
+			[&](framemetadata_sp& metadata)
+			{ return addOutputPin(metadata); }));
+	}
+	else if (mFrameType == FrameMetadata::FrameType::H264_DATA)
+	{
+		mDetail.reset(new DetailH264(props,
+			[&](size_t size, string& pinId)
+			{ return makeFrame(size,pinId); },
+			[&](int type)
+			{ return getOutputMetadataByType(type); },
+			[&](int type)
+			{ return getOutputPinIdByType(type); },
+			[&](frame_sp& frame, size_t& size, string& pinId)
+			{ return makeFrame(frame, size, pinId); },
+			[&](framemetadata_sp& metadata)
+			{ return addOutputPin(metadata); }));
+	}
+	//mDetail->addOutputPin(inputPinIdMetadataMap);
 	mDetail->Init();
-	encodedImageMetadata = getOutputMetadataByType(outImageFrameType);
-	mp4FrameMetadata = getOutputMetadataByType(FrameMetadata::FrameType::MP4_VIDEO_METADATA);
-
-	// set proto version in mp4videometadata
-	auto serFormatVersion = mDetail->getSerFormatVersion();
-	auto mp4VideoMetadata = FrameMetadataFactory::downcast<Mp4VideoMetadata>(mp4FrameMetadata);
-	mp4VideoMetadata->setData(serFormatVersion);
-
 	return true;
 }
 
@@ -375,52 +511,32 @@ bool Mp4ReaderSource::term()
 	return moduleRet;
 }
 
-string Mp4ReaderSource::addOutputPin(framemetadata_sp& metadata)
+std::string Mp4ReaderSource::addOutPutPin(framemetadata_sp& metadata)
 {
 	auto outFrameType = metadata->getFrameType();
 
 	if (outFrameType == FrameMetadata::FrameType::ENCODED_IMAGE)
 	{
-		encodedImagePinId = Module::addOutputPin(metadata);
-		outImageFrameType = outFrameType;
-		return encodedImagePinId;
+		mDetail->encodedImagePinId = Module::addOutputPin(metadata);
+		return mDetail->encodedImagePinId;
+	}
+	else if (outFrameType == FrameMetadata::FrameType::H264_DATA)
+	{
+		mDetail->h264ImagePinId = Module::addOutputPin(metadata);
+		return mDetail->h264ImagePinId;
 	}
 	else
 	{
-		mp4FramePinId = Module::addOutputPin(metadata);
-		return mp4FramePinId;
+		mDetail->mp4FramePinId = Module::addOutputPin(metadata);
+		return mDetail->mp4FramePinId;
 	}
 }
 
 bool Mp4ReaderSource::produce()
 {
-	frame_sp imgFrame = makeFrame(mDetail->mProps.biggerFrameSize, getOutputPinIdByType(FrameMetadata::ENCODED_IMAGE));
-	frame_sp metadataFrame = makeFrame(mDetail->mProps.biggerMetadataFrameSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
-	uint8_t* sampleFrame = reinterpret_cast<uint8_t *>(imgFrame->data());
-	uint8_t* sampleMetadataFrame = reinterpret_cast<uint8_t *>(metadataFrame->data());
-	size_t imageActualSize;
-	size_t metadataActualSize;
-	mDetail->readNextFrame(sampleFrame, sampleMetadataFrame, imageActualSize, metadataActualSize);
-
-	if (!imageActualSize || !sampleFrame)
-	{
-		// #Dec_27_Review - return false will call onStepFail
-		// #Dec_27_Review - onStepFail will not do anything currently - so produce is called again and again
-		return true;
-	}
-
 	frame_container frames;
-	auto trimmedImgFrame = makeFrame(imgFrame, imageActualSize, encodedImagePinId);
-	frames.insert(make_pair(encodedImagePinId, trimmedImgFrame));
-	if (metadataActualSize)
-	{
-		auto metadataSizeFrame = makeFrame(metadataFrame, metadataActualSize, getOutputPinIdByType(FrameMetadata::MP4_VIDEO_METADATA));
-
-		frames.insert(make_pair(mp4FramePinId, metadataSizeFrame));
-	}
-
+	mDetail->produceFrames(frames);
 	send(frames);
-
 	return true;
 }
 
@@ -450,7 +566,6 @@ bool Mp4ReaderSource::validateOutputPins()
 			return false;
 		}
 	}
-
 	return true;
 }
 

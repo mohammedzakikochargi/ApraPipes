@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Module.h"
+class Detail;
+class DetailJpeg;
+class DetailH264;
 
 class Mp4ReaderSourceProps : public ModuleProps
 {
@@ -69,7 +72,7 @@ public:
 	bool term();
 	Mp4ReaderSourceProps getProps();
 	void setProps(Mp4ReaderSourceProps &props);
-	string addOutputPin(framemetadata_sp& metadata);
+	std::string addOutPutPin(framemetadata_sp& metadata);
 	bool randomSeek(uint64_t skipTS);
 	void setMetadata(framemetadata_sp metadata);
 protected:
@@ -78,11 +81,15 @@ protected:
 	bool handleCommand(Command::CommandType type, frame_sp& fame);
 	bool handlePropsChange(frame_sp &frame);
 private:
-	class Detail;
 	int outImageFrameType;
 	boost::shared_ptr<Detail> mDetail;
-	framemetadata_sp encodedImageMetadata;
-	framemetadata_sp mp4FrameMetadata;
-	std::string encodedImagePinId;
-	std::string mp4FramePinId;
+	//framemetadata_sp encodedImageMetadata;
+	//framemetadata_sp mp4FrameMetadata;
+	//framemetadata_sp h264ImageMetadata;
+	//std::string h264IamgePinId;
+	//std::string encodedImagePinId;
+	//std::string mp4FramePinId;
+	Mp4ReaderSourceProps props;
+	std::function<frame_sp(size_t size)> _makeFrame;
+	std::function<framemetadata_sp(int type)> _getOutputMetadataByType;
 };
