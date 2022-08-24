@@ -187,6 +187,7 @@ SET(CORE_FILES
 	src/QRReader.cpp
 	src/Mp4WriterSink.cpp
 	src/Mp4WriterSinkUtils.cpp
+	src/MultimediaQueue.cpp
 )
 
 SET(CORE_FILES_H
@@ -235,6 +236,7 @@ SET(CORE_FILES_H
 	include/EncodedImageMetadata.h
 	include/PropsChangeMetadata.h
 	include/ValveModule.h
+	include/MultimediaQueue.h
 )
 
 IF(ENABLE_WINDOWS)
