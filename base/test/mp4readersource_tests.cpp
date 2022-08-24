@@ -449,8 +449,8 @@ BOOST_AUTO_TEST_CASE(mp4v_to_h264)
 
     auto mp4ReaderProps = Mp4ReaderSourceProps(videoPath, parseFS);
     auto mp4Reader = boost::shared_ptr<Mp4ReaderSource>(new Mp4ReaderSource(mp4ReaderProps));
-    auto encodedImageMetadata = framemetadata_sp(new H264Metadata(0, 0));
-    mp4Reader->addOutputPin(encodedImageMetadata);
+    auto h264ImageMetadata = framemetadata_sp(new H264Metadata(0, 0));
+    mp4Reader->addOutPutPin(h264ImageMetadata);
     auto mp4Metadata = framemetadata_sp(new Mp4VideoMetadata());
     mp4Reader->addOutputPin(mp4Metadata);
 

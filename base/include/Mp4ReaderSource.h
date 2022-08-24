@@ -81,14 +81,11 @@ protected:
 	bool handleCommand(Command::CommandType type, frame_sp& fame);
 	bool handlePropsChange(frame_sp &frame);
 private:
+	std::string h264ImagePinId;
+	std::string encodedImagePinId;
+	std::string mp4FramePinId;
 	int outImageFrameType;
 	boost::shared_ptr<Detail> mDetail;
-	//framemetadata_sp encodedImageMetadata;
-	//framemetadata_sp mp4FrameMetadata;
-	//framemetadata_sp h264ImageMetadata;
-	//std::string h264IamgePinId;
-	//std::string encodedImagePinId;
-	//std::string mp4FramePinId;
 	Mp4ReaderSourceProps props;
 	std::function<frame_sp(size_t size)> _makeFrame;
 	std::function<framemetadata_sp(int type)> _getOutputMetadataByType;
