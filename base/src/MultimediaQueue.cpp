@@ -40,6 +40,7 @@ public:
 	}
 	std::string addInputPin(std::string& pinId)
 	{
+		boost::multi_index
 		mQueue[pinId] = boost::container::deque<frame_sp>();
 		return MultimediaQueueStrategy::addInputPin(pinId);
 	}
@@ -50,26 +51,29 @@ public:
 		double largestTimeStamp = 0;
 		for (auto it = frames.cbegin(); it != frames.cend(); it++)
 		{
-			mQueue.push_back(it->second);
+			mQueue[it->first].push_back(it->second);
 			if (largestTimeStamp < it->second->timestamp)
 			{
 				largestTimeStamp = it->second->timestamp;
 			}
 		}
 		// loop over the que and remove old frames using maxQueueLength
-	auto& frames_arr = mQueue;
-		while (frames_arr.size())
+		for (auto it = mQueue.begin(); it != mQueue.end(); it++)
 		{
-			auto& frame = frames_arr.front();
-			// if (frame->timeStamp < firstHighestTimeStamp || largestTimeStamp - frame->timeStamp > maxTsDelay)
-			if (largestTimeStamp - frame->timestamp > maxQueueLength)
+			auto& frames_arr = it->second;
+			while (frames_arr.size())
 			{
-				// LOG_ERROR << "Dropping Frames";
-				frames_arr.pop_front();
-			}
-			else
-			{
-				break;
+				auto& frame = frames_arr.front();
+				// if (frame->timeStamp < firstHighestTimeStamp || largestTimeStamp - frame->timeStamp > maxTsDelay)
+				if (largestTimeStamp - frame->timestamp > maxQueueLength)
+				{
+					// LOG_ERROR << "Dropping Frames";
+					frames_arr.pop_front();
+				}
+				else
+				{
+					break;
+				}
 			}
 		}
 		return true;
@@ -113,10 +117,14 @@ public:
 	}
 	void clear()
 	{
+		for (auto it = mQueue.begin(); it != mQueue.end(); it++)
+		{
+			it->second.clear();
+		}
 		mQueue.clear();
 	}
 private:
-	typedef std::vector<boost_deque<frame_sp>> MultimediaQueue; // pinId and frame queue
+	typedef std::map<std::string, boost_deque<frame_sp>> MultimediaQueue; // pinId and frame queue
 	MultimediaQueue mQueue;
 	double maxQueueLength;
 	int maxDelay;
