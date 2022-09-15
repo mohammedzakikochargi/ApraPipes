@@ -14,7 +14,7 @@ cd _build
 cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo %VCPKG_ARGS%
 cmake --build .
 cd ..
-
+rem goto :EOF
 mkdir _debugbuild
 cd _debugbuild
 cmake -DCMAKE_BUILD_TYPE=Debug %VCPKG_ARGS%
