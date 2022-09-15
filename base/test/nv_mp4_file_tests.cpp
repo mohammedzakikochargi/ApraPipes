@@ -10,6 +10,7 @@
 #include "CudaMemCopy.h"
 #include "H264EncoderNVCodec.h"
 
+
 BOOST_AUTO_TEST_SUITE(nv_mp4_file_tests)
 
 BOOST_AUTO_TEST_CASE(h264EncoderNV_to_h264writer)
@@ -23,7 +24,6 @@ BOOST_AUTO_TEST_CASE(h264EncoderNV_to_h264writer)
 	uint32_t frameRate = 30;
 	H264EncoderNVCodecProps::H264CodecProfile profile = H264EncoderNVCodecProps::BASELINE;
 	bool enableBFrames = 1;
-
 	std::string inFolderPath = "./data/Raw_YUV420_640x360/????.raw";
 	std::string outFolderPath = "./data/testOutput/mp4_videos/rgb_24bpp/";
 
@@ -88,7 +88,6 @@ BOOST_AUTO_TEST_CASE(h264EncoderNV_to_h264writer_Chunktime)
 	uint32_t frameRate = 30;
 	H264EncoderNVCodecProps::H264CodecProfile profile = H264EncoderNVCodecProps::HIGH;
 	bool enableBFrames = 1;
-
 	std::string inFolderPath = "./data/Raw_YUV420_640x360/????.raw";
 	std::string outFolderPath = "./data/testOutput/mp4_videos/rgb_24bpp/";
 
