@@ -165,6 +165,7 @@ public:
 	virtual bool stop();
 	virtual bool term();
 	virtual bool isFull();
+	virtual bool isNextModuleQueFull();
 
 	void adaptQueue(boost::shared_ptr<FrameContainerQueueAdapter> queAdapter);
 	
