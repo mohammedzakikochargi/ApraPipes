@@ -15,8 +15,6 @@ IF(ENABLE_CUDA)
 	add_compile_definitions(APRA_CUDA_ENABLED)
 ENDIF(ENABLE_CUDA)
 
-SET ( LIBMP4_LIB_DIR "../thirdparty/libmp4/libs")
-
 IF(ENABLE_LINUX)
 	add_compile_definitions(LINUX)	
 ENDIF(ENABLE_LINUX)
@@ -241,7 +239,6 @@ SET(CORE_FILES_H
 	include/EncodedImageMetadata.h
 	include/PropsChangeMetadata.h
 	include/ValveModule.h
-	include/MultimediaQueue.h
 )
 
 IF(ENABLE_WINDOWS)
@@ -257,7 +254,6 @@ SET(GENERIC_FILES
 	src/H264ParserUtils.cpp
 	src/H264Utils.cpp
 	src/QRReader.cpp
-	src/H264FrameUtils.cpp
 )
 SET(GENERIC_FILES_H
 	include/H264FrameDemuxer.h
@@ -290,6 +286,7 @@ SET(IP_FILES
 	src/FaceDetectorXform.cpp
 	src/TextOverlayXForm.cpp
 	src/ValveModule.cpp
+	src/ColorConversion.cpp
 )
 
 
@@ -322,6 +319,7 @@ SET(IP_FILES_H
 	include/FaceDetectsInfo.h
 	include/FaceDetectorXform.h
 	include/TextOverlayXForm.h
+	include/ColorConversion.h
 )
 
 
@@ -581,6 +579,7 @@ SET(UT_FILES
 	test/mp4writersink_tests.cpp
 	test/pipeline_tests.cpp
 	test/valveModule_tests.cpp
+	test/color_conversion_tests.cpp
 	${ARM64_UT_FILES}
 	${CUDA_UT_FILES}
 )

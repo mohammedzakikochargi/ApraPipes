@@ -62,6 +62,9 @@ public:
 		case ImageMetadata::BGRA:
 			_step = _width * 4;
 			break;
+		case ImageMetadata::BG10:
+			_step = _width * 2;
+			break;
 		default:
 			auto msg = "Unknown image type<" + std::to_string(imageType) + ">";
 			throw AIPException(AIP_NOTIMPLEMENTED, msg);
@@ -206,6 +209,9 @@ protected:
 		case ImageMetadata::RGBA:
 		case ImageMetadata::BGRA:
 			channels = 4;
+			break;
+		case ImageMetadata::BG10:
+			channels = 1;
 			break;
 		default:
 			auto msg = "Unknown image type<" + std::to_string(imageType) + ">";

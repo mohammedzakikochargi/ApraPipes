@@ -26,13 +26,13 @@ public:
 		iImg = Utils::getMatHeader(FrameMetadataFactory::downcast<RawImageMetadata>(input));
 		oImg = Utils::getMatHeader(FrameMetadataFactory::downcast<RawImageMetadata>(mOutputMetadata));
 	}
-
 public:
 	size_t mFrameLength;
 	framemetadata_sp mOutputMetadata;
 	std::string mOutputPinId;
 	cv::Mat iImg;
 	cv::Mat oImg;
+	boost::shared_ptr<ColorConversion> Props;
 	ColorConversionProps mProps;
 };
 
@@ -60,7 +60,7 @@ bool ColorConversion::validateInputPins()
 
 	auto rawMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(metadata);
 	auto imageType = rawMetadata->getImageType();
-	if (imageType != ImageMetadata::RGB && imageType != ImageMetadata::BGR)
+	if (imageType != ImageMetadata::RGB && imageType != ImageMetadata::BGR && imageType != ImageMetadata::BG10)
 	{
 		LOG_ERROR << "<" << getId() << ">It is expected to be a RGB or BGR image. Actual<" << imageType << ">";
 		return false;
@@ -113,6 +113,9 @@ void ColorConversion::addInputPin(framemetadata_sp &metadata, string &pinId)
 	case ColorConversionProps::colorconversion::RGBTOBGR:
 		mDetail->mOutputMetadata = boost::shared_ptr<FrameMetadata>(new RawImageMetadata(rawMetadata->getWidth(), rawMetadata->getHeight(), ImageMetadata::ImageType::BGR, CV_8UC3, 0, CV_8U, FrameMetadata::HOST, true));
 		break;
+	case ColorConversionProps::colorconversion::BAYERTOMONO:
+		mDetail->mOutputMetadata = boost::shared_ptr<FrameMetadata>(new RawImageMetadata(rawMetadata->getWidth(), rawMetadata->getHeight(), ImageMetadata::ImageType::MONO, CV_8UC1, 0, CV_8U, FrameMetadata::HOST, true));
+		break;
 	default:
 		break;
 	}
@@ -124,6 +127,24 @@ void ColorConversion::addInputPin(framemetadata_sp &metadata, string &pinId)
 std::string ColorConversion::addOutputPin(framemetadata_sp &metadata)
 {
 	return Module::addOutputPin(metadata);
+}
+
+bool ColorConversion::bayerToMono(uint16_t* inpPtr,uint16_t* outPtr)
+{
+	framemetadata_sp metadata = getFirstInputMetadata();
+	auto rawMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(metadata);
+	memset(outPtr, 0, 800 * 800);
+
+	for (auto i = 0; i < 800; i++)
+	{
+		auto inPtr1 = inpPtr + i * 800;
+		auto outPtr1 = outPtr + i * 800;
+		for (auto j = 0; j < 800; j++)
+		{
+			*outPtr1++ = (*inPtr1++) >> 2;
+		}
+	}
+	return true;
 }
 
 bool ColorConversion::init()
@@ -145,9 +166,19 @@ bool ColorConversion::process(frame_container &frames)
 	}
 
 	auto outFrame = makeFrame();
-
+	/// <summary>
+	///		Cv based on color conversion type
+	/// </summary>
+	/// <param name="frames"></param>
+	/// <returns></returns>
 	mDetail->iImg.data = static_cast<uint8_t *>(frame->data());
-	mDetail->oImg.data = static_cast<uint8_t *>(outFrame->data());
+	mDetail->oImg.data = static_cast<uint8_t *>(outFrame->data()); 
+
+	auto inpPtr = static_cast<uint16_t*>(frame->data());
+	auto outPtr = static_cast<uint16_t*>(outFrame->data());
+
+	//uint16_t* inpPtr = static_cast<uint16_t*>(frame->data());;
+	//uint16_t* outPtr;
 
 	framemetadata_sp metadata = getFirstInputMetadata();
 	auto rawMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(metadata);
@@ -167,6 +198,19 @@ bool ColorConversion::process(frame_container &frames)
 		break;
 	case ColorConversionProps::colorconversion::RGBTOBGR:
 		cv::cvtColor(mDetail->iImg, mDetail->oImg, cv::COLOR_RGB2BGR);
+		break;
+	case ColorConversionProps::colorconversion::BAYERTOMONO:
+	memset(outPtr, 0, 800 * 800); // output step 
+
+		for (int i = 0; i < 800; i++)
+		{
+			auto inPtr1 = inpPtr + i * 800;
+			auto outPtr1 = outPtr + i * 800;
+			for (int j = 0; j < 800; j++)
+			{
+				*outPtr1++ = (*inPtr1++) >> 2;
+			}
+		}
 		break;
 	default:
 		break;

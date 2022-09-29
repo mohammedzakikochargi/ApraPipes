@@ -10,7 +10,8 @@ public:
 		RGBTOMONO = 0,
 		BGRTOMONO = 1,
 		BGRTORGB = 2,
-		RGBTOBGR = 3
+		RGBTOBGR = 3,
+		BAYERTOMONO = 4
 	};
 	ColorConversionProps(colorconversion coc) : ModuleProps()
 	{
@@ -25,12 +26,14 @@ public:
 
 	ColorConversion(ColorConversionProps _props);
 	virtual ~ColorConversion();
+	bool bayerToMono(uint16_t* inpPtr,uint16_t* outPtr);
 	bool init();
 	bool term();
 
 protected:
 	bool process(frame_container& frames);
 	bool processSOS(frame_sp& frame);
+	
 	bool validateInputPins();
 	bool validateOutputPins();
 	void addInputPin(framemetadata_sp& metadata, string& pinId);
