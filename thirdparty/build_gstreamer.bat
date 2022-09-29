@@ -8,7 +8,11 @@ cd gst-build
 
 rem use on GHA to cleanup the folder
 IF /I NOT "%1"=="clean" GOTO NOCLEAN
+git worktree list
 rmdir /s /q gst-build-1.16
+git worktree prune
+git worktree list
+
 
 :NOCLEAN
 python gst-worktree.py add gst-build-1.16 origin/1.16
@@ -23,4 +27,5 @@ meson --prefix=%cd%\outInstall builddir -Dpython=disabled -Ddevtools=disabled
 meson compile -C builddir "--vs-args=/MP"
 meson install -C builddir
 del /S /Q builddir
+del /S /Q subprojects
 dir
