@@ -11,7 +11,8 @@ public:
 		BGRTOMONO = 1,
 		BGRTORGB = 2,
 		RGBTOBGR = 3,
-		BAYERTOMONO = 4
+		BAYERTOMONO = 4,
+		RGBTOYUV420 = 5
 	};
 	ColorConversionProps(colorconversion coc) : ModuleProps()
 	{
@@ -26,7 +27,7 @@ public:
 
 	ColorConversion(ColorConversionProps _props);
 	virtual ~ColorConversion();
-	bool bayerToMono(uint16_t* inpPtr,uint16_t* outPtr);
+	bool bayerToMono(frame_sp& frame);
 	bool init();
 	bool term();
 
@@ -47,5 +48,7 @@ private:
 	boost::shared_ptr<Detail> mDetail;
 	framemetadata_sp mOutputMetadata;
 	std::string mOutputPinId;
+	uint16_t mWidth;
+	uint16_t mHeight;
 };
 

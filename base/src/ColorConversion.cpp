@@ -24,7 +24,8 @@ public:
 	void initMatImages(framemetadata_sp& input)
 	{
 		iImg = Utils::getMatHeader(FrameMetadataFactory::downcast<RawImageMetadata>(input));
-		oImg = Utils::getMatHeader(FrameMetadataFactory::downcast<RawImageMetadata>(mOutputMetadata));
+		auto metadata = FrameMetadataFactory::downcast<RawImagePlanarMetadata>(mOutputMetadata);
+		oImg = Utils::getMatHeader(metadata);
 	}
 public:
 	size_t mFrameLength;
@@ -97,6 +98,9 @@ void ColorConversion::addInputPin(framemetadata_sp &metadata, string &pinId)
 {
 	Module::addInputPin(metadata, pinId);
 	auto rawMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(metadata);
+	//auto rawPlanarMetadata = FrameMetadataFactory::downcast<RawImagePlanarMetadata>(metadata);
+	mWidth = rawMetadata->getWidth();
+	mHeight = rawMetadata->getHeight();
 	auto imageType = rawMetadata->getImageType();
 
 	switch (mProps.colorchange)
@@ -116,6 +120,8 @@ void ColorConversion::addInputPin(framemetadata_sp &metadata, string &pinId)
 	case ColorConversionProps::colorconversion::BAYERTOMONO:
 		mDetail->mOutputMetadata = boost::shared_ptr<FrameMetadata>(new RawImageMetadata(rawMetadata->getWidth(), rawMetadata->getHeight(), ImageMetadata::ImageType::MONO, CV_8UC1, 0, CV_8U, FrameMetadata::HOST, true));
 		break;
+	case ColorConversionProps::colorconversion::RGBTOYUV420:
+		mDetail->mOutputMetadata = boost::shared_ptr<FrameMetadata>(new RawImagePlanarMetadata(rawMetadata->getWidth(), rawMetadata->getHeight(), ImageMetadata::ImageType::YUV420,size_t(0),CV_8U,FrameMetadata::HOST));
 	default:
 		break;
 	}
@@ -129,10 +135,14 @@ std::string ColorConversion::addOutputPin(framemetadata_sp &metadata)
 	return Module::addOutputPin(metadata);
 }
 
-bool ColorConversion::bayerToMono(uint16_t* inpPtr,uint16_t* outPtr)
+bool ColorConversion::bayerToMono(frame_sp& frame)
 {
-	framemetadata_sp metadata = getFirstInputMetadata();
-	auto rawMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(metadata);
+	auto outFrame = makeFrame(mWidth*mHeight);
+	auto inpPtr = static_cast<uint16_t*>(frame->data());
+	auto outPtr = static_cast<uint16_t*>(outFrame->data());
+
+	/*auto inpPtr = static_cast<uint16_t*>(frame->data());
+	auto outPtr = static_cast<uint8_t*>(outFrame->data());*/
 	memset(outPtr, 0, 800 * 800);
 
 	for (auto i = 0; i < 800; i++)
@@ -144,6 +154,9 @@ bool ColorConversion::bayerToMono(uint16_t* inpPtr,uint16_t* outPtr)
 			*outPtr1++ = (*inPtr1++) >> 2;
 		}
 	}
+	frame_container frames;
+	frames.insert(make_pair(mDetail->mOutputPinId, outFrame));
+	send(frames);
 	return true;
 }
 
@@ -166,16 +179,14 @@ bool ColorConversion::process(frame_container &frames)
 	}
 
 	auto outFrame = makeFrame();
-	/// <summary>
-	///		Cv based on color conversion type
-	/// </summary>
-	/// <param name="frames"></param>
-	/// <returns></returns>
+	
+	//	Cv based on color conversion type
+	
 	mDetail->iImg.data = static_cast<uint8_t *>(frame->data());
 	mDetail->oImg.data = static_cast<uint8_t *>(outFrame->data()); 
 
-	auto inpPtr = static_cast<uint16_t*>(frame->data());
-	auto outPtr = static_cast<uint16_t*>(outFrame->data());
+	/*auto inpPtr = static_cast<uint16_t*>(frame->data());
+	auto outPtr = static_cast<uint16_t*>(outFrame->data());*/
 
 	//uint16_t* inpPtr = static_cast<uint16_t*>(frame->data());;
 	//uint16_t* outPtr;
@@ -200,18 +211,10 @@ bool ColorConversion::process(frame_container &frames)
 		cv::cvtColor(mDetail->iImg, mDetail->oImg, cv::COLOR_RGB2BGR);
 		break;
 	case ColorConversionProps::colorconversion::BAYERTOMONO:
-	memset(outPtr, 0, 800 * 800); // output step 
-
-		for (int i = 0; i < 800; i++)
-		{
-			auto inPtr1 = inpPtr + i * 800;
-			auto outPtr1 = outPtr + i * 800;
-			for (int j = 0; j < 800; j++)
-			{
-				*outPtr1++ = (*inPtr1++) >> 2;
-			}
-		}
-		break;
+		bayerToMono(frame);
+		return true;
+	case ColorConversionProps::colorconversion::RGBTOYUV420:
+		cv::cvtColor(mDetail->iImg, mDetail->oImg, cv::COLOR_YUV420p2RGB);
 	default:
 		break;
 	}
