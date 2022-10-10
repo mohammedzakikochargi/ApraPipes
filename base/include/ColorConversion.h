@@ -12,7 +12,8 @@ public:
 		BGRTORGB = 2,
 		RGBTOBGR = 3,
 		BAYERTOMONO = 4,
-		RGBTOYUV420 = 5
+		RGBTOYUV420 = 5,
+		YUV420TORGB
 	};
 	ColorConversionProps(colorconversion coc) : ModuleProps()
 	{
@@ -50,5 +51,9 @@ private:
 	std::string mOutputPinId;
 	uint16_t mWidth;
 	uint16_t mHeight;
+	uint16_t mStep;
+	FrameMetadata::FrameType inputFrameType;
+	RawImageMetadata* rawMetadata;
+	RawImagePlanarMetadata* rawPlanarMetadata;
 };
 

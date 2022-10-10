@@ -145,15 +145,15 @@ std::string Utils::base64_encode(unsigned char const* bytes_to_encode, size_t in
 
 cv::Mat Utils::getMatHeader(RawImageMetadata* metadata)
 {
-	uint8_t data;	
+	uint8_t data = 0;	
 	return cv::Mat(metadata->getHeight(), metadata->getWidth(), metadata->getType(), static_cast<void*>(&data), metadata->getStep());
 }
 
 cv::Mat Utils::getMatHeader(RawImagePlanarMetadata* metadata)
 {
-	uint8_t data;
+	uint8_t data = 0;
 	
-	return cv::Mat(metadata->getWidth(0) , metadata->getWidth(0), 12, static_cast<void*>(&data), metadata->getStep(0));
+	return cv::Mat(metadata->getHeight(0) + metadata->getHeight(0) / 2, metadata->getWidth(0), CV_8UC1, static_cast<void*>(&data));//,1280*1.5  
 }
 
 cv::Mat Utils::getMatHeader(cv::Rect& roi, RawImageMetadata* metadata)
