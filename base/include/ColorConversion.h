@@ -19,8 +19,13 @@ public:
 	{
 		colorchange = coc;
 	}
+	ColorConversionProps() : ModuleProps()
+	{}
 	colorconversion colorchange;
 };
+
+class DetailAbs;
+
 class ColorConversion : public Module
 {
 
@@ -38,6 +43,7 @@ protected:
 	
 	bool validateInputPins();
 	bool validateOutputPins();
+	void setConversionStrategy(framemetadata_sp metadata);
 	void addInputPin(framemetadata_sp& metadata, string& pinId);
 	std::string addOutputPin(framemetadata_sp &metadata);
 
@@ -45,14 +51,12 @@ private:
 	void setMetadata(framemetadata_sp& metadata);
 	int mFrameType;
 	ColorConversionProps mProps;
-	class Detail;
-	boost::shared_ptr<Detail> mDetail;
+	boost::shared_ptr<DetailAbs> mDetail;
 	framemetadata_sp mOutputMetadata;
 	std::string mOutputPinId;
 	uint16_t mWidth;
 	uint16_t mHeight;
 	uint16_t mStep;
-	FrameMetadata::FrameType inputFrameType;
 	RawImageMetadata* rawMetadata;
 	RawImagePlanarMetadata* rawPlanarMetadata;
 };
