@@ -1,8 +1,10 @@
 #pragma once
-#include "ColorConversion.h"
+#include "boost/shared_ptr.hpp"
+#include "FrameMetadata.h"
 
+class DetailAbstract;
 class AbsColorConversionFactory
 {
 public:
-    static boost::shared_ptr<DetailAbs> create(std::string &version, uint16_t type);
+    static boost::shared_ptr<DetailAbstract> create(framemetadata_sp input,framemetadata_sp output);
 };

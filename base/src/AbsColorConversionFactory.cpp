@@ -1,46 +1,102 @@
-#include "ColorConversion.h"
 #include "AbsColorConversionFactory.h"
+#include "ColorConversionStrategy.h"
 
-
-boost::shared_ptr<DetailAbs> AbsColorConversionFactory::create(std::string &version, uint16_t type)
+boost::shared_ptr<DetailAbstract> AbsColorConversionFactory::create(framemetadata_sp input, framemetadata_sp output)
 {
-	boost::shared_ptr<DetailAbs> mapper;
-	static std::map<std::pair<std::string, int>, boost::shared_ptr<DetailAbs>> cache;
-	auto requiredMapper = std::make_pair(version, type);
+	boost::shared_ptr<DetailAbstract> mapper;
+	static std::map<std::pair<ImageMetadata::ImageType, ImageMetadata::ImageType>, boost::shared_ptr<DetailAbstract>> cache;
+	
+	auto memType = input->getMemType();
+	auto inputFrameType = input->getFrameType();
+	auto outputFrameType = output->getFrameType();
+	ImageMetadata::ImageType inputImageType;
+	ImageMetadata::ImageType outputImageType;
+
+	std::pair<ImageMetadata::ImageType, ImageMetadata::ImageType> requiredMapper;
 
 	if (cache.find(requiredMapper) != cache.end())
 	{
 		return cache[requiredMapper];
 	}
-	else
+
+	if (memType == FrameMetadata::HOST && inputFrameType == FrameMetadata::RAW_IMAGE && outputFrameType == FrameMetadata::RAW_IMAGE)
 	{
-		if (version == "v_1_0")
+		auto rawMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(input);
+		auto rawPlanarMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(output);
+		inputImageType = rawMetadata->getImageType();
+		outputImageType = rawPlanarMetadata->getImageType();
+		if (inputImageType == ImageMetadata::RGB && outputImageType == ImageMetadata::BGR)
 		{
-			mapper = boost::shared_ptr<DetailAbs>(new EDAResultProtoMapper_v_1_0);
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuRGB2BGR());
 		}
-		else if (version == "v_2_0")
+		else if (inputImageType == ImageMetadata::BGR && outputImageType == ImageMetadata::RGB)
 		{
-			if (type == AbsResultBase::RESULT_TYPE_CODE::DEFECTS_INFO)
-			{
-				mapper = boost::shared_ptr<DetailAbs>(new DefectsInfoMapper_v_2_0);
-			}
-			else if (type == AbsResultBase::RESULT_TYPE_CODE::SATURATION_RESULT)
-			{
-				mapper = boost::shared_ptr<DetailAbs>(new SaturationResultMapper_v_2_0);
-			}
-			else
-			{
-				LOG_ERROR << "No mapper found for: version <" << version << "> type <"<< std::to_string(type) << ">";
-				throw AIPException(AIP_FATAL, "No mapper found for: version <" + version + "> type <" + std::to_string(type) + ">");
-			}
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuBGR2RGB());
 		}
-		else
+		else if (inputImageType == ImageMetadata::BGR && outputImageType == ImageMetadata::MONO)
 		{
-			LOG_ERROR << "No mapper found for: version <" << version + "> type <" << std::to_string(type) << ">";
-			throw AIPException(AIP_FATAL, "No mapper found for: version <" + version + "> type <" + std::to_string(type) + ">");
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuBGR2MONO());
+		}
+		else if (inputImageType == ImageMetadata::RGB && outputImageType == ImageMetadata::MONO)
+		{
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuRGB2MONO());
+		}
+		else if (inputImageType == ImageMetadata::BAYERBG8 && outputImageType == ImageMetadata::RGB)
+		{
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuBayerBG82RGB());
+		}
+		else if (inputImageType == ImageMetadata::BAYERBG8 && outputImageType == ImageMetadata::MONO)
+		{
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuBayerBG82Mono());
+		}
+		else if (inputImageType == ImageMetadata::BAYERGB8 && outputImageType == ImageMetadata::RGB)
+		{
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuBayerGB82RGB());
+		}
+		else if (inputImageType == ImageMetadata::BAYERRG8 && outputImageType == ImageMetadata::RGB)
+		{
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuBayerRG82RGB());
+		}
+		else if (inputImageType == ImageMetadata::BAYERGR8 && outputImageType == ImageMetadata::RGB)
+		{
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuBayerGR82RGB());
 		}
 	}
-
+	else if (memType == FrameMetadata::HOST && inputFrameType == FrameMetadata::RAW_IMAGE && outputFrameType == FrameMetadata::RAW_IMAGE_PLANAR)
+	{
+		auto rawMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(input);
+		auto rawPlanarMetadata = FrameMetadataFactory::downcast<RawImagePlanarMetadata>(output);
+		inputImageType = rawMetadata->getImageType();
+		outputImageType = rawPlanarMetadata->getImageType();
+		if (inputImageType == ImageMetadata::RGB && outputImageType == ImageMetadata::YUV420)
+		{
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuRGB2YUV420Planar());
+		}
+	}
+	else if (memType == FrameMetadata::HOST && inputFrameType == FrameMetadata::RAW_IMAGE_PLANAR && outputFrameType == FrameMetadata::RAW_IMAGE)
+	{
+		auto rawMetadata = FrameMetadataFactory::downcast<RawImagePlanarMetadata>(input);
+		auto rawPlanarMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(output);
+		inputImageType = rawMetadata->getImageType();
+		outputImageType = rawPlanarMetadata->getImageType();
+		if (inputImageType == ImageMetadata::YUV420 && outputImageType == ImageMetadata::RGB)
+		{
+			mapper = boost::shared_ptr<DetailAbstract>(new CpuYUV420Planar2RGB());
+		}
+	}
+	else if (memType == FrameMetadata::CUDA_DEVICE && inputFrameType == FrameMetadata::RAW_IMAGE && outputFrameType == FrameMetadata::RAW_IMAGE_PLANAR)
+	{
+		
+	}
+	else if (memType == FrameMetadata::CUDA_DEVICE && inputFrameType == FrameMetadata::RAW_IMAGE && outputFrameType == FrameMetadata::RAW_IMAGE)
+	{
+		
+	}
+	else if (memType == FrameMetadata::CUDA_DEVICE && inputFrameType == FrameMetadata::RAW_IMAGE_PLANAR && outputFrameType == FrameMetadata::RAW_IMAGE)
+	{
+		
+	}
+	requiredMapper = std::make_pair(inputImageType, outputImageType);
 	cache[requiredMapper] = mapper;
 	return mapper;
 }

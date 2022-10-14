@@ -288,6 +288,7 @@ SET(IP_FILES
 	src/ValveModule.cpp
 	src/ColorConversion.cpp
 	src/AbsColorConversionFactory.cpp
+	src/ColorConversionStrategy.h
 )
 
 

@@ -62,8 +62,14 @@ public:
 		case ImageMetadata::BGRA:
 			_step = _width * 4;
 			break;
-		case ImageMetadata::BG10:
+		case ImageMetadata::BAYERBG10:
 			_step = _width * 2;
+			break;
+		case ImageMetadata::BAYERBG8:
+		case ImageMetadata::BAYERGB8:
+		case ImageMetadata::BAYERGR8:
+		case ImageMetadata::BAYERRG8:
+			_step = _width * 1;
 			break;
 		default:
 			auto msg = "Unknown image type<" + std::to_string(imageType) + ">";
@@ -210,7 +216,13 @@ protected:
 		case ImageMetadata::BGRA:
 			channels = 4;
 			break;
-		case ImageMetadata::BG10:
+		case ImageMetadata::BAYERBG10:
+			channels = 1;
+			break;
+		case ImageMetadata::BAYERBG8:
+		case ImageMetadata::BAYERGB8:
+		case ImageMetadata::BAYERGR8:
+		case ImageMetadata::BAYERRG8:
 			channels = 1;
 			break;
 		default:

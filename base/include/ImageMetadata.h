@@ -20,7 +20,11 @@ public:
 		YUV420, // Planar
 		UYVY,	// Interleaved		
 		NV12,
-		BG10
+		BAYERBG10,
+		BAYERBG8,
+		BAYERGB8,
+		BAYERGR8,
+		BAYERRG8
 	};
 
 	static size_t getElemSize(int depth)

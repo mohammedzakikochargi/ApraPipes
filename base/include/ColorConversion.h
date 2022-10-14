@@ -1,19 +1,24 @@
 #pragma once
 #include "FrameMetadata.h"
 #include "Module.h"
+#include "AbsColorConversionFactory.h"
 
 class ColorConversionProps : public ModuleProps
 {
 public:
 	enum colorconversion
 	{
-		RGBTOMONO = 0,
-		BGRTOMONO = 1,
-		BGRTORGB = 2,
-		RGBTOBGR = 3,
-		BAYERTOMONO = 4,
-		RGBTOYUV420 = 5,
-		YUV420TORGB
+		RGB_2_MONO = 0,
+		BGR_2_MONO = 1,
+		BGR_2_RGB = 2,
+		RGB_2_BGR = 3,
+		BAYERBG8_2_MONO = 4,
+		RGB_2_YUV420PLANAR = 5,
+		YUV420PLANAR_2_RGB = 6,
+		BAYERBG8_2_RGB = 7,
+		BAYERGB8_2_RGB = 8,
+		BAYERRG8_2_RGB = 9,
+		BAYERGR8_2_RGB 
 	};
 	ColorConversionProps(colorconversion coc) : ModuleProps()
 	{
@@ -24,7 +29,7 @@ public:
 	colorconversion colorchange;
 };
 
-class DetailAbs;
+//class DetailAbstract;
 
 class ColorConversion : public Module
 {
@@ -33,7 +38,6 @@ public:
 
 	ColorConversion(ColorConversionProps _props);
 	virtual ~ColorConversion();
-	bool bayerToMono(frame_sp& frame);
 	bool init();
 	bool term();
 
@@ -43,7 +47,7 @@ protected:
 	
 	bool validateInputPins();
 	bool validateOutputPins();
-	void setConversionStrategy(framemetadata_sp metadata);
+	void setConversionStrategy(framemetadata_sp inputMetadata, framemetadata_sp outputMetadata);
 	void addInputPin(framemetadata_sp& metadata, string& pinId);
 	std::string addOutputPin(framemetadata_sp &metadata);
 
@@ -51,13 +55,10 @@ private:
 	void setMetadata(framemetadata_sp& metadata);
 	int mFrameType;
 	ColorConversionProps mProps;
-	boost::shared_ptr<DetailAbs> mDetail;
-	framemetadata_sp mOutputMetadata;
+	boost::shared_ptr<DetailAbstract> mDetail;
 	std::string mOutputPinId;
 	uint16_t mWidth;
 	uint16_t mHeight;
-	uint16_t mStep;
-	RawImageMetadata* rawMetadata;
-	RawImagePlanarMetadata* rawPlanarMetadata;
+	framemetadata_sp mOutputMetadata;
 };
 
