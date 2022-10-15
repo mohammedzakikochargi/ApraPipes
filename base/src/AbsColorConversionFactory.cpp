@@ -5,7 +5,7 @@ boost::shared_ptr<DetailAbstract> AbsColorConversionFactory::create(framemetadat
 {
 	boost::shared_ptr<DetailAbstract> mapper;
 	static std::map<std::pair<ImageMetadata::ImageType, ImageMetadata::ImageType>, boost::shared_ptr<DetailAbstract>> cache;
-	
+
 	auto memType = input->getMemType();
 	auto inputFrameType = input->getFrameType();
 	auto outputFrameType = output->getFrameType();
@@ -21,10 +21,11 @@ boost::shared_ptr<DetailAbstract> AbsColorConversionFactory::create(framemetadat
 
 	if (memType == FrameMetadata::HOST && inputFrameType == FrameMetadata::RAW_IMAGE && outputFrameType == FrameMetadata::RAW_IMAGE)
 	{
-		auto rawMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(input);
-		auto rawPlanarMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(output);
-		inputImageType = rawMetadata->getImageType();
-		outputImageType = rawPlanarMetadata->getImageType();
+		auto rawInputMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(input);
+		auto rawOutputMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(output);
+		inputImageType = rawInputMetadata->getImageType();
+		outputImageType = rawOutputMetadata->getImageType();
+
 		if (inputImageType == ImageMetadata::RGB && outputImageType == ImageMetadata::BGR)
 		{
 			mapper = boost::shared_ptr<DetailAbstract>(new CpuRGB2BGR());
@@ -65,9 +66,10 @@ boost::shared_ptr<DetailAbstract> AbsColorConversionFactory::create(framemetadat
 	else if (memType == FrameMetadata::HOST && inputFrameType == FrameMetadata::RAW_IMAGE && outputFrameType == FrameMetadata::RAW_IMAGE_PLANAR)
 	{
 		auto rawMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(input);
-		auto rawPlanarMetadata = FrameMetadataFactory::downcast<RawImagePlanarMetadata>(output);
+		auto rawOutputMetadata = FrameMetadataFactory::downcast<RawImagePlanarMetadata>(output);
 		inputImageType = rawMetadata->getImageType();
-		outputImageType = rawPlanarMetadata->getImageType();
+		outputImageType = rawOutputMetadata->getImageType();
+
 		if (inputImageType == ImageMetadata::RGB && outputImageType == ImageMetadata::YUV420)
 		{
 			mapper = boost::shared_ptr<DetailAbstract>(new CpuRGB2YUV420Planar());
@@ -79,6 +81,7 @@ boost::shared_ptr<DetailAbstract> AbsColorConversionFactory::create(framemetadat
 		auto rawPlanarMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(output);
 		inputImageType = rawMetadata->getImageType();
 		outputImageType = rawPlanarMetadata->getImageType();
+
 		if (inputImageType == ImageMetadata::YUV420 && outputImageType == ImageMetadata::RGB)
 		{
 			mapper = boost::shared_ptr<DetailAbstract>(new CpuYUV420Planar2RGB());
@@ -86,15 +89,15 @@ boost::shared_ptr<DetailAbstract> AbsColorConversionFactory::create(framemetadat
 	}
 	else if (memType == FrameMetadata::CUDA_DEVICE && inputFrameType == FrameMetadata::RAW_IMAGE && outputFrameType == FrameMetadata::RAW_IMAGE_PLANAR)
 	{
-		
+		throw AIPException(AIP_FATAL, "GPU conversion not supported for this conversion");
 	}
 	else if (memType == FrameMetadata::CUDA_DEVICE && inputFrameType == FrameMetadata::RAW_IMAGE && outputFrameType == FrameMetadata::RAW_IMAGE)
 	{
-		
+		throw AIPException(AIP_FATAL, "GPU conversion not supported for this conversion");
 	}
 	else if (memType == FrameMetadata::CUDA_DEVICE && inputFrameType == FrameMetadata::RAW_IMAGE_PLANAR && outputFrameType == FrameMetadata::RAW_IMAGE)
 	{
-		
+		throw AIPException(AIP_FATAL, "GPU conversion not supported for this conversion");
 	}
 	requiredMapper = std::make_pair(inputImageType, outputImageType);
 	cache[requiredMapper] = mapper;

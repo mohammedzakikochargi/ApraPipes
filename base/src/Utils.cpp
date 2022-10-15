@@ -152,8 +152,7 @@ cv::Mat Utils::getMatHeader(RawImageMetadata* metadata)
 cv::Mat Utils::getMatHeader(RawImagePlanarMetadata* metadata)
 {
 	uint8_t data = 0;
-	
-	return cv::Mat(metadata->getHeight(0) + metadata->getHeight(0) / 2, metadata->getWidth(0), CV_8UC1, static_cast<void*>(&data));//,1280*1.5  
+	return cv::Mat(metadata->getHeight(0) + metadata->getHeight(0) / 2, metadata->getWidth(0), CV_8UC1, static_cast<void*>(&data));
 }
 
 cv::Mat Utils::getMatHeader(cv::Rect& roi, RawImageMetadata* metadata)

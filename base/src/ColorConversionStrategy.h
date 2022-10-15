@@ -4,17 +4,11 @@ class DetailAbstract
 {
 public:
 	DetailAbstract() {}
-	DetailAbstract(ColorConversionProps& _props) :mProps(_props)
-	{
-
-	};
-
 	~DetailAbstract() {}
-	virtual void doColorConversion(frame_container& inputFrame, frame_sp& outFrame, framemetadata_sp outputMetadata) {};
+	virtual void convert(frame_container& inputFrame, frame_sp& outFrame, framemetadata_sp outputMetadata) {};
 public:
 	cv::Mat iImg;
 	cv::Mat oImg;
-	ColorConversionProps mProps;
 };
 
 class CpuInterleaved2Planar : public DetailAbstract
@@ -31,16 +25,10 @@ protected:
 
 		iImg = Utils::getMatHeader(FrameMetadataFactory::downcast<RawImageMetadata>(inputMetadata));
 		oImg = Utils::getMatHeader(FrameMetadataFactory::downcast<RawImagePlanarMetadata>(outputMetadata));
-		auto planarMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(inputMetadata);
-		mWidth = planarMetadata->getWidth();
-		mHeight = planarMetadata->getHeight();
 
 		iImg.data = static_cast<uint8_t*>(frame->data());
 		oImg.data = static_cast<uint8_t*>(outputFrame->data());
 	}
-
-	int mWidth = 0;
-	int mHeight = 0;
 };
 
 class CpuRGB2YUV420Planar : public CpuInterleaved2Planar
@@ -49,12 +37,10 @@ public:
 	CpuRGB2YUV420Planar() {}
 	~CpuRGB2YUV420Planar() {}
 
-	void CpuRGB2YUV420Planar::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuRGB2YUV420Planar::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Planar::initMatImages(inputFrame, outputFrame, outputMetadata);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
 		cv::cvtColor(iImg, oImg, cv::COLOR_RGB2YUV_I420);
-		auto yuvData = oImg.data;
-		memcpy(outputFrame->data(), yuvData, mWidth * mHeight * 1.5);
 	}
 };
 
@@ -82,9 +68,9 @@ class CpuRGB2BGR : public CpuInterleaved2Interleaved
 public:
 	CpuRGB2BGR() {}
 	~CpuRGB2BGR() {}
-	void CpuRGB2BGR::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuRGB2BGR::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
 		cv::cvtColor(iImg, oImg, cv::COLOR_RGB2BGR);
 	}
 };
@@ -95,9 +81,9 @@ public:
 	CpuBGR2RGB() {}
 	~CpuBGR2RGB() {}
 
-	void CpuBGR2RGB::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuBGR2RGB::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
 		cv::cvtColor(iImg, oImg, cv::COLOR_BGR2RGB);
 	}
 };
@@ -108,9 +94,9 @@ public:
 	CpuRGB2MONO() {}
 	~CpuRGB2MONO() {}
 
-	void CpuRGB2MONO::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuRGB2MONO::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
 		cv::cvtColor(iImg, oImg, cv::COLOR_RGB2GRAY);
 	}
 };
@@ -121,9 +107,9 @@ public:
 	CpuBGR2MONO() {}
 	~CpuBGR2MONO() {}
 
-	void CpuBGR2MONO::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuBGR2MONO::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
 		cv::cvtColor(iImg, oImg, cv::COLOR_BGR2GRAY);
 	}
 };
@@ -134,10 +120,10 @@ public:
 	CpuBayerBG82RGB() {}
 	~CpuBayerBG82RGB() {}
 
-	void CpuBayerBG82RGB::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuBayerBG82RGB::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
-		cv::cvtColor(iImg, oImg, cv::COLOR_BayerBG2RGB);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
+		cv::cvtColor(iImg, oImg, cv::COLOR_BayerRG2RGB);
 	}
 };
 
@@ -147,10 +133,10 @@ public:
 	CpuBayerGB82RGB() {}
 	~CpuBayerGB82RGB() {}
 
-	void CpuBayerGB82RGB::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuBayerGB82RGB::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
-		cv::cvtColor(iImg, oImg, cv::COLOR_BayerGB2RGB);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
+		cv::cvtColor(iImg, oImg, cv::COLOR_BayerGR2RGB);
 	}
 };
 
@@ -160,10 +146,10 @@ public:
 	CpuBayerGR82RGB() {}
 	~CpuBayerGR82RGB() {}
 
-	void CpuBayerGR82RGB::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuBayerGR82RGB::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
-		cv::cvtColor(iImg, oImg, cv::COLOR_BayerGR2RGB);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
+		cv::cvtColor(iImg, oImg, cv::COLOR_BayerGB2RGB);
 	}
 };
 
@@ -173,10 +159,10 @@ public:
 	CpuBayerRG82RGB() {}
 	~CpuBayerRG82RGB() {}
 
-	void CpuBayerRG82RGB::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuBayerRG82RGB::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
-		cv::cvtColor(iImg, oImg, cv::COLOR_BayerRG2RGB);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
+		cv::cvtColor(iImg, oImg, cv::COLOR_BayerBG2RGB);
 	}
 };
 
@@ -186,9 +172,9 @@ public:
 	CpuBayerBG82Mono() {}
 	~CpuBayerBG82Mono() {}
 
-	void CpuBayerBG82Mono::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuBayerBG82Mono::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuInterleaved2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
 		cv::cvtColor(iImg, oImg, cv::COLOR_BayerBG2GRAY);
 	}
 };
@@ -205,16 +191,10 @@ public:
 
 		iImg = Utils::getMatHeader(FrameMetadataFactory::downcast<RawImagePlanarMetadata>(inputMetadata));
 		oImg = Utils::getMatHeader(FrameMetadataFactory::downcast<RawImageMetadata>(outputMetadata));
-		auto planarMetadata = FrameMetadataFactory::downcast<RawImageMetadata>(outputMetadata);
-		mWidth = planarMetadata->getWidth();
-		mHeight = planarMetadata->getHeight();
 
 		iImg.data = static_cast<uint8_t*>(frame->data());
 		oImg.data = static_cast<uint8_t*>(outputFrame->data());
 	}
-
-	int mWidth = 0;
-	int mHeight = 0;
 };
 
 class CpuYUV420Planar2RGB : public CpuPlanar2Interleaved
@@ -223,32 +203,9 @@ public:
 	CpuYUV420Planar2RGB() {}
 	~CpuYUV420Planar2RGB() {}
 
-	void CpuYUV420Planar2RGB::doColorConversion(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
+	void CpuYUV420Planar2RGB::convert(frame_container& inputFrame, frame_sp& outputFrame, framemetadata_sp outputMetadata)
 	{
-		CpuPlanar2Interleaved::initMatImages(inputFrame, outputFrame, outputMetadata);
-		cv::cvtColor(iImg, oImg, cv::COLOR_RGB2YUV_I420);
-		auto yuvData = oImg.data;
-		memcpy(outputFrame->data(), yuvData, mWidth * mHeight * 3);
+		initMatImages(inputFrame, outputFrame, outputMetadata);
+		cv::cvtColor(iImg, oImg, cv::COLOR_YUV420p2RGB);
 	}
-};
-
-class GpuInterleaved2Planar : public DetailAbstract
-{
-public:
-	GpuInterleaved2Planar() {}
-	~GpuInterleaved2Planar() {}
-};
-
-class GpuInterleaved2Interleaved : public DetailAbstract
-{
-public:
-	GpuInterleaved2Interleaved() {}
-	~GpuInterleaved2Interleaved() {}
-};
-
-class GpuPlanar2Interleaved : public DetailAbstract
-{
-public:
-	GpuPlanar2Interleaved() {}
-	~GpuPlanar2Interleaved() {}
 };

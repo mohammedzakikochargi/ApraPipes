@@ -6,5 +6,5 @@ class DetailAbstract;
 class AbsColorConversionFactory
 {
 public:
-    static boost::shared_ptr<DetailAbstract> create(framemetadata_sp input,framemetadata_sp output);
+	static boost::shared_ptr<DetailAbstract> create(framemetadata_sp input, framemetadata_sp output);
 };
