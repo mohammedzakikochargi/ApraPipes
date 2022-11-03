@@ -7,11 +7,7 @@
 class H264DecoderNvCodecProps : public ModuleProps
 {
 public:
-	H264DecoderNvCodecProps(apracucontext_sp& _cuContext) :  cuContext(_cuContext)
-	{
-
-	}
-	apracucontext_sp cuContext;
+	H264DecoderNvCodecProps() {}
 };
 
 class H264DecoderNvCodec : public Module

@@ -15,15 +15,7 @@ class H264DecoderNvCodec::Detail
 public:
 	Detail(H264DecoderNvCodecProps& _props)
 	{
-		auto myWidth = 704;
-		auto myHeight = 576;
-		CUcontext cuContext = 0;
-		bool bUseDeviceFrame = false;
-		cudaVideoCodec eCodec = cudaVideoCodec_H264;
-		std::mutex* pMutex = NULL;
-		bool bLowLatency = false;
-		bool bDeviceFramePitched = false;
-		helper.reset(new H264DecoderNvCodecHelper(cuContext, myWidth, myHeight, bUseDeviceFrame, eCodec, pMutex, bLowLatency, bDeviceFramePitched, myWidth, myHeight));
+		helper.reset(new H264DecoderNvCodecHelper());
 	}
 
 	~Detail()
@@ -33,31 +25,21 @@ public:
 
 	bool setMetadata(framemetadata_sp& metadata, std::function<frame_sp(size_t)> makeFrame, std::function<void(frame_sp&, frame_sp&)> send)
 	{
-		uint32_t width = 0;
-		uint32_t height = 0;
-		uint32_t pitch = 0;
-		ImageMetadata::ImageType imageType = ImageMetadata::UNSET;
-
 		if (metadata->getFrameType() == FrameMetadata::FrameType::H264_DATA)
 		{
-			
-			width = 704;
-			height = 576;
 		}
 		
 		else
 		{
 			throw AIPException(AIP_NOTIMPLEMENTED, "Unknown frame type");
-
 		}
-		//helper->reset();
 
-		return helper->init(width, height, makeFrame, send);
+		return helper->init( makeFrame, send);
 	}
 
-	bool compute(frame_sp& frame)
+	bool compute(frame_sp& frame, frame_sp outFrame)
 	{
-		return helper->process(frame);
+		return helper->process(frame,outFrame);
 	}
 
 	void endEncode()
@@ -74,7 +56,7 @@ private:
 H264DecoderNvCodec::H264DecoderNvCodec(H264DecoderNvCodecProps _props) : Module(TRANSFORM, "H264DecoderNvCodec", _props), mShouldTriggerSOS(true), props(_props)
 {
 	mDetail.reset(new Detail(props));
-	mOutputMetadata = framemetadata_sp(new FrameMetadata(FrameMetadata::FrameType::RAW_IMAGE));
+	mOutputMetadata = boost::shared_ptr<FrameMetadata>(new RawImagePlanarMetadata(704, 576, ImageMetadata::YUV420, size_t(0), CV_8U, FrameMetadata::HOST));
 	mOutputPinId = addOutputPin(mOutputMetadata);
 }
 
@@ -118,7 +100,7 @@ bool H264DecoderNvCodec::validateOutputPins()
 
 	framemetadata_sp metadata = getFirstOutputMetadata();
 	FrameMetadata::FrameType frameType = metadata->getFrameType();
-	if (frameType != FrameMetadata::RAW_IMAGE)
+	if (frameType != FrameMetadata::RAW_IMAGE_PLANAR)
 	{
 		LOG_ERROR << "<" << getId() << ">::validateOutputPins input frameType is expected to be H264_DATA. Actual<" << frameType << ">";
 		return false;
@@ -148,8 +130,8 @@ bool H264DecoderNvCodec::term()
 bool H264DecoderNvCodec::process(frame_container& frames)
 {
 	auto frame = frames.cbegin()->second;
-
-	mDetail->compute(frame);
+	auto outputFrame = makeFrame();
+	mDetail->compute(frame,outputFrame);
 
 	return true;
 }

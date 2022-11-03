@@ -26,7 +26,6 @@ BOOST_AUTO_TEST_SUITE(h264Decodernvcodec_tests)
 BOOST_AUTO_TEST_CASE(H264_704x576)
 {
 	Logger::setLogLevel("info");
-	auto cuContext = apracucontext_sp(new ApraCUcontext());
 
 	// metadata is known
 	auto width = 704;
@@ -39,23 +38,15 @@ BOOST_AUTO_TEST_CASE(H264_704x576)
 
 	auto rawImagePin = fileReader->addOutputPin(h264ImageMetadata);
 
-
-	/*auto cudaStream_ = boost::shared_ptr<ApraCudaStream>(new ApraCudaStream());
-
-	auto copyProps = CudaMemCopyProps(cudaMemcpyKind::cudaMemcpyHostToDevice, cudaStream_);
-	copyProps.sync = true;
-	auto copy = boost::shared_ptr<Module>(new CudaMemCopy(copyProps));
-	fileReader->setNext(copy);*/
-	auto Decoder = boost::shared_ptr<Module>(new H264DecoderNvCodec(H264DecoderNvCodecProps(cuContext)));
+	auto Decoder = boost::shared_ptr<Module>(new H264DecoderNvCodec(H264DecoderNvCodecProps()));
 	fileReader->setNext(Decoder);
 
-	//auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/h264images/Raw_YUV420_640x360????.h264")));
-	//Decoder->setNext(fileWriter);
+	auto fileWriter = boost::shared_ptr<Module>(new FileWriterModule(FileWriterModuleProps("./data/testOutput/h264images/Raw_YUV420_640x360????.raw")));
+	Decoder->setNext(fileWriter);
 
 	BOOST_TEST(fileReader->init());
-	//BOOST_TEST(copy->init());
 	BOOST_TEST(Decoder->init());
-	//BOOST_TEST(fileWriter->init());
+	BOOST_TEST(fileWriter->init());
 
 	fileReader->play(true);
 
@@ -64,7 +55,10 @@ BOOST_AUTO_TEST_CASE(H264_704x576)
 		fileReader->step();
 	//	copy->step();
 		Decoder->step();
-		//fileWriter->step();
+		if (i > 18)
+		{
+			fileWriter->step();
+		}
 	}
 	for (auto j = 0; j < 1; j++)
 	{
