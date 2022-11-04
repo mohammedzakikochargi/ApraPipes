@@ -91,7 +91,7 @@ public:
     NvDecoder(CUcontext cuContext, int nWidth, int nHeight, bool bUseDeviceFrame, cudaVideoCodec eCodec, std::mutex* pMutex = NULL,
         bool bLowLatency = false, bool bDeviceFramePitched = false, const Rect* pCropRect = NULL, const Dim* pResizeDim = NULL, int maxWidth = 0, int maxHeight = 0);
     NvDecoder() {}
-    ~NvDecoder();
+    ~NvDecoder() {};
 
     /**
     *  @brief  This function is used to get the current CUDA context.
@@ -246,16 +246,14 @@ private:
 class H264DecoderNvCodecHelper : public NvDecoder
 {
 public:
-    H264DecoderNvCodecHelper();
+    H264DecoderNvCodecHelper(int mWidth, int mHieght);
+    H264DecoderNvCodecHelper() {}
     ~H264DecoderNvCodecHelper() {}
 
-    bool init(std::function<frame_sp(size_t)> makeFrame, std::function<void(frame_sp&, frame_sp&)> send);
+    bool init(std::function<void(frame_sp&)> send);
     void ConvertToPlanar(uint8_t* pHostFrame, int nWidth, int nHeight, int nBitDepth);
     bool process(frame_sp& frame,frame_sp outputFrame);
-    void endDecode();
- 
-    frame_sp framess;
-    std::function<void(frame_sp&, frame_sp&)> send;
+    std::function<void( frame_sp&)> send;
 private:
     int j = 0;
     boost::shared_ptr<NvDecoder> helper;
