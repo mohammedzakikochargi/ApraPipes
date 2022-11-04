@@ -1,5 +1,6 @@
 #include "H264DecoderNvCodec.h"
 #include "H264DecoderNvCodecHelper.h"
+#include "H264ParserUtils.h"
 #include "FrameMetadata.h"
 #include "H264Metadata.h"
 #include "Frame.h"
@@ -15,7 +16,6 @@ class H264DecoderNvCodec::Detail
 public:
 	Detail(H264DecoderNvCodecProps& _props)
 	{
-		helper.reset(new H264DecoderNvCodecHelper());
 	}
 
 	~Detail()
@@ -23,41 +23,42 @@ public:
 		helper.reset();
 	}
 
-	bool setMetadata(framemetadata_sp& metadata, std::function<frame_sp(size_t)> makeFrame, std::function<void(frame_sp&, frame_sp&)> send)
+	bool setMetadata(framemetadata_sp& metadata, frame_sp frame,std::function<void(frame_sp&)> send)
 	{
 		if (metadata->getFrameType() == FrameMetadata::FrameType::H264_DATA)
 		{
+			sps_pps_properties p;
+			H264ParserUtils::parse_sps(((const char*)frame->data()) + 5, frame->size() > 5 ? frame->size() - 5 : frame->size(), &p);//
+			mWidth = p.width;
+			mHeight = p.height;
+
+			auto h264Metadata = framemetadata_sp(new H264Metadata(mWidth, mHeight));
+			auto rawOutMetadata = FrameMetadataFactory::downcast<H264Metadata>(h264Metadata);
+			rawOutMetadata->setData(*rawOutMetadata);
 		}
 		
 		else
 		{
 			throw AIPException(AIP_NOTIMPLEMENTED, "Unknown frame type");
 		}
-
-		return helper->init( makeFrame, send);
+		helper.reset(new H264DecoderNvCodecHelper(mWidth, mHeight));
+		return helper->init(send);
 	}
 
 	bool compute(frame_sp& frame, frame_sp outFrame)
 	{
 		return helper->process(frame,outFrame);
 	}
-
-	void endEncode()
-	{
-		return helper->endDecode();
-	}
-
-
+public:
+	int mWidth = 0;
+	int mHeight = 0;
 private:
 	boost::shared_ptr<H264DecoderNvCodecHelper> helper;
-
 };
 
 H264DecoderNvCodec::H264DecoderNvCodec(H264DecoderNvCodecProps _props) : Module(TRANSFORM, "H264DecoderNvCodec", _props), mShouldTriggerSOS(true), props(_props)
 {
 	mDetail.reset(new Detail(props));
-	mOutputMetadata = boost::shared_ptr<FrameMetadata>(new RawImagePlanarMetadata(704, 576, ImageMetadata::YUV420, size_t(0), CV_8U, FrameMetadata::HOST));
-	mOutputPinId = addOutputPin(mOutputMetadata);
 }
 
 H264DecoderNvCodec::~H264DecoderNvCodec() {}
@@ -74,14 +75,14 @@ bool H264DecoderNvCodec::validateInputPins()
 	FrameMetadata::FrameType frameType = metadata->getFrameType();
 	if (frameType!= FrameMetadata::FrameType::H264_DATA)
 	{
-		LOG_ERROR << "<" << getId() << ">::validateInputPins input frameType is expected to be RAW_IMAGE or RAW_IMAGE_PLANAR. Actual<" << frameType << ">";
+		LOG_ERROR << "<" << getId() << ">::validateInputPins input frameType is expected to be H264_DATA. Actual<" << frameType << ">";
 		return false;
 	}
 
 	FrameMetadata::MemType memType = metadata->getMemType();
 	if (memType != FrameMetadata::MemType::HOST)
 	{
-		LOG_ERROR << "<" << getId() << ">::validateInputPins input memType is expected to be CUDA_DEVICE. Actual<" << memType << ">";
+		LOG_ERROR << "<" << getId() << ">::validateInputPins input memType is expected to be HOST_DEVICE. Actual<" << memType << ">";
 		return false;
 	}
 
@@ -102,11 +103,19 @@ bool H264DecoderNvCodec::validateOutputPins()
 	FrameMetadata::FrameType frameType = metadata->getFrameType();
 	if (frameType != FrameMetadata::RAW_IMAGE_PLANAR)
 	{
-		LOG_ERROR << "<" << getId() << ">::validateOutputPins input frameType is expected to be H264_DATA. Actual<" << frameType << ">";
+		LOG_ERROR << "<" << getId() << ">::validateOutputPins input frameType is expected to be RAW_IMAGE_PLANAR. Actual<" << frameType << ">";
 		return false;
 	}
 
 	return true;
+}
+
+void H264DecoderNvCodec::addInputPin(framemetadata_sp& metadata, string& pinId)
+{
+	Module::addInputPin(metadata, pinId);
+	mOutputMetadata = boost::shared_ptr<FrameMetadata>(new RawImagePlanarMetadata(RawImageMetadata::MemType::HOST));
+	
+	mOutputPinId = Module::addOutputPin(mOutputMetadata);
 }
 
 bool H264DecoderNvCodec::init()
@@ -121,7 +130,6 @@ bool H264DecoderNvCodec::init()
 
 bool H264DecoderNvCodec::term()
 {
-	mDetail->endEncode();
 	mDetail.reset();
 
 	return Module::term();
@@ -132,26 +140,22 @@ bool H264DecoderNvCodec::process(frame_container& frames)
 	auto frame = frames.cbegin()->second;
 	auto outputFrame = makeFrame();
 	mDetail->compute(frame,outputFrame);
-
 	return true;
 }
 
 bool H264DecoderNvCodec::processSOS(frame_sp& frame)
 {
-	mDetail->setMetadata(frame->getMetadata(),
-		[&](size_t size) -> frame_sp {return makeFrame(size,mOutputPinId); },
-		[&](frame_sp& inputFrame, frame_sp& outputFrame) {
-
-			outputFrame->setMetadata(mOutputMetadata);
-
+	mDetail->setMetadata(frame->getMetadata(), frame,
+		[&](frame_sp& outputFrame) {
 			frame_container frames;
-			frames.insert(make_pair(mInputPinId, inputFrame));
 			frames.insert(make_pair(mOutputPinId, outputFrame));
 			send(frames);
 		}
 	);
 	mShouldTriggerSOS = false;
-
+	RawImagePlanarMetadata OutputMetadata(mDetail->mWidth, mDetail->mHeight, ImageMetadata::YUV420, size_t(0), CV_8U, FrameMetadata::HOST);
+	auto rawOutMetadata = FrameMetadataFactory::downcast<RawImagePlanarMetadata>(mOutputMetadata);
+	rawOutMetadata->setData(OutputMetadata);
 	return true;
 }
 
@@ -162,6 +166,9 @@ bool H264DecoderNvCodec::shouldTriggerSOS()
 
 bool H264DecoderNvCodec::processEOS(string& pinId)
 {
+	auto frame = frame_sp(new EmptyFrame());
+	auto outputFrame = makeFrame();
+	mDetail->compute(frame, outputFrame);
 	mShouldTriggerSOS = true;
 	return true;
 }

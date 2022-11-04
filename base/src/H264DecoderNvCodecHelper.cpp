@@ -248,8 +248,8 @@ int NvDecoder::HandleVideoSequence(CUVIDEOFORMAT* pVideoFormat)
 
 	if (m_nWidth && m_nHeight) {
 
-		// cuvidCreateDecoder() has been called before, and now there's possible config change
-	   // return ReconfigureDecoder(pVideoFormat);
+		//cuvidCreateDecoder(); has been called before, and now there's possible config change
+	    //return ReconfigureDecoder(pVideoFormat);
 	}
 
 	// eCodec has been set in the constructor (for parser). Here it's set again for potential correction
@@ -596,45 +596,45 @@ NvDecoder::NvDecoder(CUcontext cuContext, int nWidth, int nHeight, bool bUseDevi
 	if (m_pMutex) m_pMutex->unlock();
 }
 
-NvDecoder::~NvDecoder() {
-
-	START_TIMER
-		cuCtxPushCurrent(m_cuContext);
-	cuCtxPopCurrent(NULL);
-
-	if (m_hParser) {
-		cuvidDestroyVideoParser(m_hParser);
-	}
-
-	if (m_hDecoder) {
-		if (m_pMutex) m_pMutex->lock();
-		cuvidDestroyDecoder(m_hDecoder);
-		if (m_pMutex) m_pMutex->unlock();
-	}
-
-	std::lock_guard<std::mutex> lock(m_mtxVPFrame);
-	if (m_vpFrame.size() != m_nFrameAlloc)
-	{
-		LOG_WARNING << "nFrameAlloc(" << m_nFrameAlloc << ") != m_vpFrame.size()(" << m_vpFrame.size() << ")";
-	}
-	for (uint8_t* pFrame : m_vpFrame)
-	{
-		if (m_bUseDeviceFrame)
-		{
-			if (m_pMutex) m_pMutex->lock();
-			cuCtxPushCurrent(m_cuContext);
-			cuMemFree((CUdeviceptr)pFrame);
-			cuCtxPopCurrent(NULL);
-			if (m_pMutex) m_pMutex->unlock();
-		}
-		else
-		{
-			delete[] pFrame;
-		}
-	}
-	cuvidCtxLockDestroy(m_ctxLock);
-	STOP_TIMER("Session Deinitialization Time: ");
-}
+//NvDecoder::~NvDecoder() {
+//
+//	START_TIMER
+//		cuCtxPushCurrent(m_cuContext);
+//	cuCtxPopCurrent(NULL);
+//
+//	if (m_hParser) {
+//		cuvidDestroyVideoParser(m_hParser);
+//	}
+//
+//	if (m_hDecoder) {
+//		if (m_pMutex) m_pMutex->lock();
+//		cuvidDestroyDecoder(m_hDecoder);
+//		if (m_pMutex) m_pMutex->unlock();
+//	}
+//
+//	std::lock_guard<std::mutex> lock(m_mtxVPFrame);
+//	if (m_vpFrame.size() != m_nFrameAlloc)
+//	{
+//		LOG_WARNING << "nFrameAlloc(" << m_nFrameAlloc << ") != m_vpFrame.size()(" << m_vpFrame.size() << ")";
+//	}
+//	for (uint8_t* pFrame : m_vpFrame)
+//	{
+//		if (m_bUseDeviceFrame)
+//		{
+//			if (m_pMutex) m_pMutex->lock();
+//			cuCtxPushCurrent(m_cuContext);
+//			cuMemFree((CUdeviceptr)pFrame);
+//			cuCtxPopCurrent(NULL);
+//			if (m_pMutex) m_pMutex->unlock();
+//		}
+//		else
+//		{
+//			delete[] pFrame;
+//		}
+//	}
+//	cuvidCtxLockDestroy(m_ctxLock);
+//	STOP_TIMER("Session Deinitialization Time: ");
+//}
 
 bool NvDecoder::Decode(const uint8_t* pData, int nSize, uint8_t*** pppFrame, int* pnFrameReturned, uint32_t flags, int64_t** ppTimestamp, int64_t timestamp, CUstream stream)
 {
@@ -694,10 +694,8 @@ void NvDecoder::UnlockFrame(uint8_t** ppFrame, int nFrame)
 	m_vpFrame.insert(m_vpFrame.end(), &ppFrame[0], &ppFrame[nFrame]);
 }
 
-H264DecoderNvCodecHelper::H264DecoderNvCodecHelper()
+H264DecoderNvCodecHelper::H264DecoderNvCodecHelper(int mWidth, int mHeight)
 {
-	auto myWidth = 704;
-	auto myHeight = 576;
 	CUcontext cuContext;
 	bool bUseDeviceFrame = false;
 	cudaVideoCodec eCodec = cudaVideoCodec_H264;;
@@ -717,10 +715,10 @@ H264DecoderNvCodecHelper::H264DecoderNvCodecHelper()
 	ck(cuDeviceGet(&cuDevice, iGpu));
 	char szDeviceName[80];
 	ck(cuCtxCreate(&cuContext, 0, cuDevice));
-	helper.reset(new NvDecoder(cuContext, myWidth, myHeight, bUseDeviceFrame, eCodec, pMutex));
+	helper.reset(new NvDecoder(cuContext, mWidth, mHeight, bUseDeviceFrame, eCodec, pMutex));
 }
 
-bool H264DecoderNvCodecHelper::init( std::function<frame_sp(size_t)> makeFrame, std::function<void(frame_sp&, frame_sp&)> _send)
+bool H264DecoderNvCodecHelper::init(std::function<void(frame_sp&)> _send)
 {
 	send = _send;
 	return false;
@@ -742,45 +740,27 @@ void H264DecoderNvCodecHelper::ConvertToPlanar(uint8_t* pHostFrame, int nWidth, 
 
 bool H264DecoderNvCodecHelper::process(frame_sp& frame, frame_sp outputFrame)
 {
-	uint8_t* pVideo = NULL;
-	uint8_t** ppFrame = reinterpret_cast<uint8_t**>(outputFrame->data());
-	pVideo = static_cast<uint8_t*>(frame->data());
-
-	int nVideoBytes = frame->size(), nFrameReturned = 0, nFrame = 0;
+	uint8_t* inputBuffer = NULL;
+	uint8_t** outBuffer = reinterpret_cast<uint8_t**>(outputFrame->data());
+	inputBuffer = static_cast<uint8_t*>(frame->data());
+	
+	int inputBufferSize = frame->size(), nFrameReturned = 0, nFrame = 0;
 	bool bOutPlanar = true;
 
-	helper->Decode(pVideo, nVideoBytes, &ppFrame, &nFrameReturned);
+	helper->Decode(inputBuffer, inputBufferSize, &outBuffer, &nFrameReturned);
 
-	for (int i = 0; i < nFrameReturned; i++) 
+	for (int i = 0; i < nFrameReturned; i++)
 	{
-		ConvertToPlanar(ppFrame[i], helper->GetWidth(), helper->GetHeight(), helper->GetBitDepth());
-		memcpy(outputFrame->data(), ppFrame[i], 704 * 576 * 1.5);
-		send(frame, outputFrame);
-		////outputFrame->data() = 
-		//auto tempBuffer = outputFrame->data();
-		//tempBuffer = ppFrame[i];
-		//LOG_ERROR << "";
+		ConvertToPlanar(outBuffer[i], helper->GetWidth(), helper->GetHeight(), helper->GetBitDepth());
+
+		memcpy(outputFrame->data(), outBuffer[i], outputFrame->size());
+		send(outputFrame);
 	}
 
-	if (j >= 213)
+	if (frame->isEOS() == true)
 	{
-
-		pVideo = NULL;
-		nVideoBytes = 0;
-		helper->Decode(pVideo, nVideoBytes, &ppFrame, &nFrameReturned);
-
-		for (int i = 0; i < nFrameReturned; i++) {
-
-			auto myWidth = 704;
-			auto myHeight = 576;
-
-		}
-
+		auto z = 0;
 	}
 
 	return false;
-}
-
-void H264DecoderNvCodecHelper::endDecode()
-{
 }
